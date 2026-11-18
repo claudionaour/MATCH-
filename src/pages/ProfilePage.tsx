@@ -18,7 +18,7 @@ const ROLE_OPTIONS: {id: UserRole; label: string; desc: string}[] = [
 ];
 
 export const ProfilePage: React.FC<ProfilePageProps> = ({onNavigate}) => {
-  const {userAccount, updateAccountProfile} = useAuth();
+  const {userAccount, isPaymentExempt, updateAccountProfile} = useAuth();
   const {showToast} = useToast();
 
   const [displayName, setDisplayName] = useState(userAccount?.displayName || '');
@@ -98,6 +98,11 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({onNavigate}) => {
             <div>
               <h2 className="text-base font-bold text-slate-900 dark:text-white">Datos de Identidad y Ubicación</h2>
               <p className="text-xs text-slate-500">{userAccount?.email}</p>
+              {isPaymentExempt && (
+                <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                  Cuenta habilitada libre de pago en MATCH+
+                </p>
+              )}
             </div>
           </div>
 

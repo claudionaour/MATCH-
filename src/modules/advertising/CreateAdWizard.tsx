@@ -6,6 +6,7 @@ import {
   getDoc,
   serverTimestamp,
   setDoc,
+  updateDoc,
 } from 'firebase/firestore';
 import {
   ArrowLeft,
@@ -83,7 +84,7 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
   onComplete,
   onCancel,
 }) => {
-  const {firebaseUser, userAccount} = useAuth();
+  const {firebaseUser, userAccount, isPaymentExempt} = useAuth();
   const {showToast} = useToast();
 
   const [step, setStep] = useState(1);
@@ -223,9 +224,11 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
   };
 
   const selectedPkg = activePackages.find((p) => p.id === selectedPackageId) || activePackages[0];
-  const effectiveDiscountPct = advertiserType === 'registered' ? discountPercent : 0;
-  const discountAmount = Math.round((selectedPkg.priceCLP * effectiveDiscountPct) / 100);
-  const finalAmountCLP = Math.max(0, selectedPkg.priceCLP - discountAmount);
+  const effectiveDiscountPct = isPaymentExempt ? 100 : advertiserType === 'registered' ? discountPercent : 0;
+  const discountAmount = isPaymentExempt
+    ? selectedPkg.priceCLP
+    : Math.round((selectedPkg.priceCLP * effectiveDiscountPct) / 100);
+  const finalAmountCLP = isPaymentExempt ? 0 : Math.max(0, selectedPkg.priceCLP - discountAmount);
 
   // Client-side copy assistant (improves grammar/capitalization & suggests titles only on user click)
   const handleImproveTextHelper = () => {
@@ -293,9 +296,21 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
     try {
       // 1. Ensure Advertiser document exists
       const advertiserId = existingAdvertiser?.id || `adv_${firebaseUser.uid}`;
-      await setDoc(
-        doc(db, 'advertisers', advertiserId),
-        {
+      if (existingAdvertiser) {
+        await updateDoc(doc(db, 'advertisers', advertiserId), {
+          businessName: businessName.trim(),
+          responsibleName: responsibleName.trim() || businessName.trim(),
+          category,
+          description: bizDescription.trim() || description.trim(),
+          commune,
+          region,
+          contactEmail: contactEmail.trim(),
+          contactPhone: contactPhone.trim(),
+          website: website.trim(),
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        await setDoc(doc(db, 'advertisers', advertiserId), {
           ownerId: firebaseUser.uid,
           advertiserType,
           businessName: businessName.trim(),
@@ -309,13 +324,12 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
           website: website.trim(),
           discountPercent: effectiveDiscountPct,
           status: 'active',
-          createdAt: existingAdvertiser?.createdAt || serverTimestamp(),
+          createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-        },
-        {merge: true}
-      );
+        });
+      }
 
-      // 2. Create or update Campaign (ALWAYS starts pending_payment / pending_review, NEVER self-activated!)
+      // 2. Create or update Campaign
       const startISO = new Date().toISOString().slice(0, 10);
       const endISO = new Date(Date.now() + selectedPkg.durationDays * 86400000).toISOString().slice(0, 10);
       const commerceOrder = `MP_${Date.now().toString().slice(-8)}_${firebaseUser.uid.slice(0, 5)}`;
@@ -323,32 +337,30 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
       let campaignId = editingCampaign?.id || '';
 
       if (editingCampaign) {
-        await setDoc(
-          doc(db, 'adCampaigns', editingCampaign.id),
-          {
-            ...editingCampaign,
-            title: title.trim(),
-            description: description.trim(),
-            benefit: benefit.trim() || 'Atención directa',
-            offerPriceText: offerPriceText.trim(),
-            ctaLabel: ctaLabel.trim(),
-            ctaActionType,
-            ctaDestination: ctaDestination.trim(),
-            imageUrl: imageUrl.trim(),
-            logoUrl: logoUrl.trim(),
-            targetSections,
-            targetCategories: [category],
-            targetScope,
-            targetCommune: commune,
-            targetRegion: region,
-            targetAudienceNote: targetAudienceNote.trim(),
-            moderationStatus: 'pending_review',
-            updatedAt: serverTimestamp(),
-          },
-          {merge: true}
-        );
+        await updateDoc(doc(db, 'adCampaigns', editingCampaign.id), {
+          title: title.trim(),
+          description: description.trim(),
+          benefit: benefit.trim() || 'Atención directa',
+          offerPriceText: offerPriceText.trim(),
+          ctaLabel: ctaLabel.trim(),
+          ctaActionType,
+          ctaDestination: ctaDestination.trim(),
+          imageUrl: imageUrl.trim(),
+          logoUrl: logoUrl.trim(),
+          targetSections,
+          targetCategories: [category],
+          targetScope,
+          targetCommune: commune,
+          targetRegion: region,
+          targetAudienceNote: targetAudienceNote.trim(),
+          moderationStatus: isPaymentExempt ? 'active' : 'pending_review',
+          updatedAt: serverTimestamp(),
+        });
         campaignId = editingCampaign.id;
-        showToast('Anuncio corregido y reenviado a moderación.', 'success');
+        showToast(
+          isPaymentExempt ? 'Anuncio actualizado y activado sin costo.' : 'Anuncio corregido y reenviado a moderación.',
+          'success'
+        );
         setStep(10);
         setSubmitting(false);
         return;
@@ -384,8 +396,12 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
         priorityWeight: selectedPkg.priorityWeight,
         startDate: startISO,
         endDate: endISO,
-        paymentStatus: paymentMethod === 'transfer' ? 'pending_confirmation' : 'pending_payment',
-        moderationStatus: 'pending_review',
+        paymentStatus: isPaymentExempt
+          ? 'confirmed'
+          : paymentMethod === 'transfer'
+            ? 'pending_confirmation'
+            : 'pending_payment',
+        moderationStatus: isPaymentExempt ? 'active' : 'pending_review',
         impressionsCount: 0,
         clicksCount: 0,
         contactsCount: 0,
@@ -404,15 +420,23 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
         commerceOrder,
         amountCLP: finalAmountCLP,
         currency: 'CLP',
-        paymentMethod,
-        receiptNote: transferNote.trim() || (paymentMethod === 'flow' ? 'Orden generada para Flow' : 'Pendiente de comprobante'),
-        status: paymentMethod === 'transfer' ? 'pending_confirmation' : 'pending',
+        paymentMethod: isPaymentExempt ? 'exempt' : paymentMethod,
+        receiptNote: isPaymentExempt
+          ? 'Cuenta habilitada libre de pago (100% bonificado)'
+          : transferNote.trim() || (paymentMethod === 'flow' ? 'Orden generada para Flow' : 'Pendiente de comprobante'),
+        status: isPaymentExempt
+          ? 'confirmed'
+          : paymentMethod === 'transfer'
+            ? 'pending_confirmation'
+            : 'pending',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
 
-      // 4. If Flow is selected, call backend /api/payments/flow/create
-      if (paymentMethod === 'flow') {
+      // 4. Bypass Flow for exempt accounts; otherwise initiate Flow or confirm transfer registration
+      if (isPaymentExempt) {
+        showToast('Campaña publicada sin costo (cuenta libre de pago).', 'success');
+      } else if (paymentMethod === 'flow') {
         const flowResult = await initiateFlowPayment({
           commerceOrder,
           packageId: selectedPkg.id,
@@ -422,7 +446,9 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
           customDiscountPercent: discountPercent,
         });
 
-        if (flowResult.redirectUrl) {
+        if (flowResult.exempt) {
+          showToast('Campaña confirmada sin costo (cuenta libre de pago).', 'success');
+        } else if (flowResult.redirectUrl) {
           showToast('Redirigiendo a Flow para completar el pago seguro...', 'success');
           window.location.assign(flowResult.redirectUrl);
           return;
@@ -886,13 +912,24 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
       {/* Step 7 */}
       {step === 7 && (
         <div className="space-y-4">
-          <p className="text-sm text-slate-600 dark:text-slate-300">
-            Planes configurables desde administración. {advertiserType === 'registered' && `Tienes ${discountPercent}% de descuento de anunciante registrado.`}
-          </p>
+          {isPaymentExempt ? (
+            <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 text-xs text-emerald-900 dark:text-emerald-200">
+              <strong>Cuenta habilitada libre de pago:</strong> Tu correo está exento de cobros en MATCH+. Todos los
+              planes publicitarios tienen valor <strong>$0 CLP</strong> (100% bonificado).
+            </div>
+          ) : (
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Planes configurables desde administración. {advertiserType === 'registered' && `Tienes ${discountPercent}% de descuento de anunciante registrado.`}
+            </p>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {activePackages.map((pkg) => {
               const selected = selectedPackageId === pkg.id;
-              const disc = advertiserType === 'registered' ? Math.round((pkg.priceCLP * discountPercent) / 100) : 0;
+              const disc = isPaymentExempt
+                ? pkg.priceCLP
+                : advertiserType === 'registered'
+                  ? Math.round((pkg.priceCLP * discountPercent) / 100)
+                  : 0;
               return (
                 <button
                   key={pkg.id}
@@ -902,10 +939,13 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
                     selected ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-800'
                   }`}
                 >
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <span className="text-sm font-bold">{pkg.name}</span>
-                    <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
-                      {formatCLP(pkg.priceCLP - disc)}
+                    <span className="font-mono tabular-nums font-bold text-blue-700 dark:text-blue-400">
+                      {isPaymentExempt && pkg.priceCLP > 0 && (
+                        <span className="text-xs line-through text-slate-400 mr-2">{formatCLP(pkg.priceCLP)}</span>
+                      )}
+                      {formatCLP(Math.max(0, pkg.priceCLP - disc))}
                     </span>
                   </div>
                   <p className="text-xs text-slate-500">
@@ -995,59 +1035,77 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
             <p>
               <strong>Plan:</strong> {selectedPkg.name} ({selectedPkg.durationDays} días)
             </p>
-            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex items-center justify-between font-mono">
+            <div className="pt-2 border-t border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 font-mono tabular-nums">
               <span>Valor base: {formatCLP(selectedPkg.priceCLP)}</span>
-              {discountAmount > 0 && <span className="text-emerald-600">Descuento: -{formatCLP(discountAmount)}</span>}
+              {discountAmount > 0 && (
+                <span className="text-emerald-600">
+                  {isPaymentExempt ? 'Bonificación cuenta exenta (100%):' : 'Descuento:'} -{formatCLP(discountAmount)}
+                </span>
+              )}
               <span className="text-lg font-extrabold text-blue-700 dark:text-blue-400">
                 Total: {formatCLP(finalAmountCLP)}
               </span>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('flow')}
-              className={`p-4 rounded-2xl border text-left ${
-                paymentMethod === 'flow' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <CreditCard className="w-4 h-4 text-blue-700" />
-                <span>Pagar en línea con Flow (Chile)</span>
+          {isPaymentExempt ? (
+            <div className="p-4 rounded-2xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/60 dark:bg-emerald-950/30 space-y-1">
+              <div className="flex items-center gap-2 font-bold text-sm text-emerald-800 dark:text-emerald-300">
+                <CheckCircle2 className="w-4 h-4 shrink-0" />
+                <span>Cuenta habilitada libre de pago ($0 CLP)</span>
               </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Webpay, tarjetas o Servipag vía Flow ({flowAvailable.configured ? `Ambiente ${flowAvailable.environment} activo` : 'Requiere configurar API keys en servidor'}).
+              <p className="text-xs text-emerald-700 dark:text-emerald-300/90">
+                Tu correo está exento de cobros en MATCH+. No necesitas pagar por Flow ni enviar comprobante de transferencia; tu campaña se activará directamente al confirmar.
               </p>
-            </button>
-            <button
-              type="button"
-              onClick={() => setPaymentMethod('transfer')}
-              className={`p-4 rounded-2xl border text-left ${
-                paymentMethod === 'transfer' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-2 font-bold text-sm">
-                <Sparkles className="w-4 h-4 text-emerald-600" />
-                <span>Orden de Pago / Transferencia Bancaria</span>
-              </div>
-              <p className="text-xs text-slate-500 mt-1">
-                Registra tu orden y número de comprobante para conciliación y activación administrativa.
-              </p>
-            </button>
-          </div>
-
-          {paymentMethod === 'transfer' && (
-            <div className="space-y-1">
-              <label className="text-xs font-semibold">Referencia o número de transferencia</label>
-              <input
-                type="text"
-                value={transferNote}
-                onChange={(e) => setTransferNote(e.target.value)}
-                placeholder="Ej. Comprobante BancoEstado #442190"
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-              />
             </div>
+          ) : (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('flow')}
+                  className={`p-4 rounded-2xl border text-left ${
+                    paymentMethod === 'flow' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <CreditCard className="w-4 h-4 text-blue-700" />
+                    <span>Pagar en línea con Flow (Chile)</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Webpay, tarjetas o Servipag vía Flow ({flowAvailable.configured ? `Ambiente ${flowAvailable.environment} activo` : 'Requiere configurar API keys en servidor'}).
+                  </p>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaymentMethod('transfer')}
+                  className={`p-4 rounded-2xl border text-left ${
+                    paymentMethod === 'transfer' ? 'border-blue-600 bg-blue-50/50 dark:bg-blue-950/30' : 'border-slate-200 dark:border-slate-800'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 font-bold text-sm">
+                    <Sparkles className="w-4 h-4 text-emerald-600" />
+                    <span>Orden de Pago / Transferencia Bancaria</span>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Registra tu orden y número de comprobante para conciliación y activación administrativa.
+                  </p>
+                </button>
+              </div>
+
+              {paymentMethod === 'transfer' && (
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold">Referencia o número de transferencia</label>
+                  <input
+                    type="text"
+                    value={transferNote}
+                    onChange={(e) => setTransferNote(e.target.value)}
+                    placeholder="Ej. Comprobante BancoEstado #442190"
+                    className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
+                  />
+                </div>
+              )}
+            </>
           )}
 
           <label className="flex items-start gap-2.5 text-xs text-slate-600 dark:text-slate-300 cursor-pointer">
@@ -1058,8 +1116,9 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
               className="mt-0.5 rounded border-slate-300 text-blue-700"
             />
             <span>
-              Acepto las condiciones de contratación publicitaria: los anuncios pasan por moderación de contenido y
-              verificación de pago en el servidor antes de activarse en la rotación.
+              {isPaymentExempt
+                ? 'Acepto las condiciones de publicación y normas de contenido de MATCH+. Esta campaña se emitirá sin costo ($0 CLP).'
+                : 'Acepto las condiciones de contratación publicitaria: los anuncios pasan por moderación de contenido y verificación de pago en el servidor antes de activarse en la rotación.'}
             </span>
           </label>
         </div>
@@ -1071,10 +1130,21 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
           <div className="mx-auto w-14 h-14 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 flex items-center justify-center">
             <CheckCircle2 className="w-8 h-8" />
           </div>
-          <h3 className="text-xl font-bold text-slate-900 dark:text-white">Solicitud y anuncio registrados</h3>
+          <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+            {isPaymentExempt ? 'Anuncio activado sin costo' : 'Solicitud y anuncio registrados'}
+          </h3>
           <p className="text-sm text-slate-600 dark:text-slate-300">
-            Tu campaña quedó guardada en <strong>Pendiente de revisión</strong>. Una vez validado el pago y aprobada por
-            moderación, ingresará automáticamente al motor rotativo de MATCH+.
+            {isPaymentExempt ? (
+              <>
+                Tu cuenta está habilitada libre de pago. La orden quedó confirmada por <strong>$0 CLP</strong> y tu
+                campaña ya está <strong>activa</strong> en el motor rotativo de MATCH+.
+              </>
+            ) : (
+              <>
+                Tu campaña quedó guardada en <strong>Pendiente de revisión</strong>. Una vez validado el pago y
+                aprobada por moderación, ingresará automáticamente al motor rotativo de MATCH+.
+              </>
+            )}
           </p>
           {flowNotice && (
             <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 p-3.5 text-xs text-amber-900 dark:text-amber-200 text-left">

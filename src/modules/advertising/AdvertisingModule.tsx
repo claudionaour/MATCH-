@@ -32,7 +32,7 @@ interface AdvertisingModuleProps {
 }
 
 export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPercent}) => {
-  const {firebaseUser} = useAuth();
+  const {firebaseUser, isPaymentExempt} = useAuth();
   const {showToast} = useToast();
 
   const [view, setView] = useState<'directory' | 'my_ads' | 'wizard'>('directory');
@@ -219,6 +219,12 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
           {/* Configurable Pricing Plans Showcase */}
           <div className="space-y-3">
             <h2 className="text-lg font-bold text-slate-900 dark:text-white">Tarifas y planes vigentes</h2>
+            {isPaymentExempt && (
+              <div className="rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/70 dark:bg-emerald-950/30 p-3.5 text-xs text-emerald-900 dark:text-emerald-200">
+                <strong>Cuenta habilitada libre de pago:</strong> Tu correo está exento de cobros. Todos los planes
+                tienen costo <strong>$0 CLP</strong> para tu cuenta.
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {(packages.length > 0 ? packages : DEFAULT_AD_PACKAGES).map((pkg) => (
                 <div
@@ -231,7 +237,14 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
                     </p>
                     <h3 className="font-bold text-slate-900 dark:text-white">{pkg.name}</h3>
                     <p className="font-mono tabular-nums text-2xl font-extrabold text-slate-950 dark:text-white">
-                      {formatCLP(pkg.priceCLP)}
+                      {isPaymentExempt ? (
+                        <>
+                          <span className="text-sm line-through text-slate-400 mr-2">{formatCLP(pkg.priceCLP)}</span>
+                          <span className="text-emerald-700 dark:text-emerald-400">{formatCLP(0)}</span>
+                        </>
+                      ) : (
+                        formatCLP(pkg.priceCLP)
+                      )}
                     </p>
                     <p className="text-xs text-slate-600 dark:text-slate-400">{pkg.description}</p>
                     <ul className="space-y-1 pt-2 text-xs text-slate-600 dark:text-slate-300">
@@ -248,7 +261,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
                     onClick={() => setView('wizard')}
                     className="w-full py-2.5 rounded-xl bg-slate-900 dark:bg-blue-700 text-white text-xs font-semibold hover:bg-slate-800 min-h-[40px]"
                   >
-                    Contratar plan
+                    {isPaymentExempt ? 'Activar sin costo' : 'Contratar plan'}
                   </button>
                 </div>
               ))}
@@ -394,7 +407,9 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
                       <tr key={ord.id}>
                         <td className="py-3 pr-4 font-mono">{ord.commerceOrder}</td>
                         <td className="py-3 pr-4">{ord.description}</td>
-                        <td className="py-3 pr-4 uppercase font-mono">{ord.paymentMethod}</td>
+                        <td className="py-3 pr-4 uppercase font-mono">
+                          {ord.paymentMethod === 'exempt' ? 'LIBRE DE PAGO' : ord.paymentMethod}
+                        </td>
                         <td className="py-3 pr-4">{ord.status}</td>
                         <td className="py-3 text-right font-mono font-bold">{formatCLP(ord.amountCLP)}</td>
                       </tr>

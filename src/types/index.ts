@@ -402,7 +402,7 @@ export interface AdOrder {
   commerceOrder: string;
   amountCLP: number;
   currency: 'CLP';
-  paymentMethod: 'flow' | 'transfer';
+  paymentMethod: 'flow' | 'transfer' | 'exempt';
   flowToken?: string;
   flowOrder?: string;
   receiptNote?: string;

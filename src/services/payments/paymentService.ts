@@ -5,6 +5,7 @@ export interface FlowStatusResponse {
 }
 
 export interface FlowCreateOrderResult {
+  exempt?: boolean;
   redirectUrl?: string;
   token?: string;
   flowOrder?: number;

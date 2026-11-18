@@ -50,6 +50,17 @@ service cloud.firestore {
         || (isVerified() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
     }
 
+    function isPaymentExempt() {
+      return isVerified()
+        && request.auth.token.email is string
+        && request.auth.token.email.lower() in [
+          'isadoranaour@gmail.com',
+          'naourclaudio@gmail.com',
+          'verocheuquepil@gmail.com',
+          'renatonaourch@gmail.com'
+        ];
+    }
+
     // ====================
     // VALIDATION BLUEPRINTS
     // ====================
@@ -313,7 +324,7 @@ service cloud.firestore {
         && data.commerceOrder is string && data.commerceOrder.size() <= 128
         && data.amountCLP is number && data.amountCLP >= 0
         && data.currency == 'CLP'
-        && data.paymentMethod in ['flow', 'transfer']
+        && data.paymentMethod in ['flow', 'transfer', 'exempt']
         && data.status in ['pending', 'pending_confirmation', 'confirmed', 'rejected', 'cancelled', 'expired'];
     }
 
@@ -704,8 +715,14 @@ service cloud.firestore {
         && isVerified()
         && isValidAdCampaign(incoming())
         && incoming().ownerId == request.auth.uid
-        && incoming().paymentStatus in ['pending_payment', 'pending_confirmation']
-        && incoming().moderationStatus in ['draft', 'pending_review']
+        && (
+          (incoming().paymentStatus in ['pending_payment', 'pending_confirmation']
+            && incoming().moderationStatus in ['draft', 'pending_review'])
+          || (isPaymentExempt()
+            && incoming().finalAmountCLP == 0
+            && incoming().paymentStatus == 'confirmed'
+            && incoming().moderationStatus in ['draft', 'pending_review', 'active'])
+        )
         && incoming().impressionsCount == 0
         && incoming().clicksCount == 0
         && incoming().contactsCount == 0
@@ -760,7 +777,13 @@ service cloud.firestore {
         && isVerified()
         && isValidAdOrder(incoming())
         && incoming().ownerId == request.auth.uid
-        && incoming().status in ['pending', 'pending_confirmation']
+        && (
+          incoming().status in ['pending', 'pending_confirmation']
+          || (isPaymentExempt()
+            && incoming().amountCLP == 0
+            && incoming().paymentMethod == 'exempt'
+            && incoming().status == 'confirmed')
+        )
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time;
       allow update: if isValidId(orderId)

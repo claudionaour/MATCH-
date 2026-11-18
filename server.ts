@@ -24,6 +24,18 @@ const SERVER_PACKAGE_CATALOG: Record<string, {name: string; priceCLP: number; du
   pkg_temp_15: {name: 'CAMPAÑA TEMPORAL 15 DÍAS', priceCLP: 9990, durationDays: 15},
 };
 
+const PAYMENT_EXEMPT_EMAILS = new Set([
+  'isadoranaour@gmail.com',
+  'naourclaudio@gmail.com',
+  'verocheuquepil@gmail.com',
+  'renatonaourch@gmail.com',
+]);
+
+function isPaymentExemptEmail(email?: string): boolean {
+  if (!email) return false;
+  return PAYMENT_EXEMPT_EMAILS.has(email.trim().toLowerCase());
+}
+
 // Idempotency & webhook verification audit store in memory for runtime protection
 const processedFlowTokens = new Map<string, {status: number; commerceOrder: string; verifiedAt: string}>();
 const adEventRateMap = new Map<string, number>();
@@ -82,6 +94,14 @@ async function startServer() {
     const pkg = SERVER_PACKAGE_CATALOG[String(packageId)];
     if (!pkg) {
       return res.status(400).json({error: 'Plan publicitario no válido en catálogo del servidor.'});
+    }
+
+    if (typeof email === 'string' && isPaymentExemptEmail(email)) {
+      return res.json({
+        exempt: true,
+        authoritativeAmountCLP: 0,
+        environment: cfg.env,
+      });
     }
 
     const discountPct = isRegisteredAdvertiser ? Math.min(Number(customDiscountPercent ?? 15), 50) : 0;

@@ -334,7 +334,7 @@
         "engine": { "type": "string", "enum": ["commercial", "employment", "advertising"], "maxLength": 20 },
         "commerceOrder": { "type": "string", "maxLength": 128 },
         "amountCLP": { "type": "number" },
-        "paymentMethod": { "type": "string", "enum": ["flow", "transfer"], "maxLength": 20 },
+        "paymentMethod": { "type": "string", "enum": ["flow", "transfer", "exempt"], "maxLength": 20 },
         "status": { "type": "string", "enum": ["pending", "pending_confirmation", "confirmed", "rejected", "cancelled", "expired"], "maxLength": 30 },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }

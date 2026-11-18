@@ -10,6 +10,19 @@ import {
 
 export const ADMIN_BOOTSTRAP_EMAIL = 'naourclaudio@gmail.com';
 
+export const PAYMENT_EXEMPT_EMAILS = [
+  'isadoranaour@gmail.com',
+  'naourclaudio@gmail.com',
+  'verocheuquepil@gmail.com',
+  'renatonaourch@gmail.com',
+] as const;
+
+export function isPaymentExemptEmail(email?: string | null): boolean {
+  if (!email) return false;
+  const normalized = email.trim().toLowerCase();
+  return PAYMENT_EXEMPT_EMAILS.some((item) => item === normalized);
+}
+
 export const DEFAULT_REGION = 'Región de Los Lagos';
 export const DEFAULT_COMMUNE = 'Castro';
 

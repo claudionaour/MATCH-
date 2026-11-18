@@ -12,7 +12,12 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import {doc, getDoc, serverTimestamp, setDoc, updateDoc} from 'firebase/firestore';
-import {ADMIN_BOOTSTRAP_EMAIL, DEFAULT_COMMUNE, DEFAULT_REGION} from '../services/config/chileCatalog';
+import {
+  ADMIN_BOOTSTRAP_EMAIL,
+  DEFAULT_COMMUNE,
+  DEFAULT_REGION,
+  isPaymentExemptEmail,
+} from '../services/config/chileCatalog';
 import {auth, db, handleFirestoreError, OperationType} from '../services/firebase/firebaseClient';
 import {AppModule, NotificationPreferences, UserAccount, UserRole} from '../types';
 
@@ -32,6 +37,7 @@ interface AuthContextValue {
   userAccount: UserAccount | null;
   authReady: boolean;
   isAdmin: boolean;
+  isPaymentExempt: boolean;
   needsEmailVerification: boolean;
   signInWithGoogle: () => Promise<void>;
   signInWithEmail: (email: string, password: string) => Promise<void>;
@@ -221,6 +227,8 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
         userAccount?.roles.includes('moderator'))
   );
 
+  const isPaymentExempt = Boolean(firebaseUser?.emailVerified && isPaymentExemptEmail(firebaseUser.email));
+
   const needsEmailVerification = Boolean(firebaseUser && !firebaseUser.emailVerified);
 
   return (
@@ -230,6 +238,7 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
         userAccount,
         authReady,
         isAdmin,
+        isPaymentExempt,
         needsEmailVerification,
         signInWithGoogle,
         signInWithEmail,
