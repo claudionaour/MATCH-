@@ -24,7 +24,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
           <div className="lg:col-span-6 flex flex-col justify-center space-y-6">
             <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 tracking-wide">
-              Piloto Chiloé · Región de Los Lagos · Expansión Nacional
+              Creado por Business Naour Group Ltda.
             </p>
             <h1
               className="font-display font-extrabold tracking-tight text-slate-950 dark:text-white leading-[1.08]"
