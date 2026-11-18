@@ -403,8 +403,8 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
       recipientName,
       targetId,
       targetTitle,
-      compatibilityScore: compatScore,
-      compatibilityExplanation: compatExp,
+      ...(typeof compatScore === 'number' ? {compatibilityScore: compatScore} : {}),
+      ...(compatExp ? {compatibilityExplanation: compatExp} : {}),
       status: 'active',
     };
 
@@ -481,15 +481,17 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
       : null;
 
     try {
-      await setDoc(doc(db, 'employmentInteractions', interactionId), {
-        fromUid: firebaseUser.uid,
-        toUid: target.ownerId,
-        targetId: item.id,
-        targetKind: isWorkerExplore ? 'worker' : 'vacancy',
-        action,
-        ...(compat ? {compatibilityScore: compat.score} : {}),
-        createdAt: serverTimestamp(),
-      });
+      if (!myInteractions.some((i) => i.id === interactionId)) {
+        await setDoc(doc(db, 'employmentInteractions', interactionId), {
+          fromUid: firebaseUser.uid,
+          toUid: target.ownerId,
+          targetId: item.id,
+          targetKind: isWorkerExplore ? 'worker' : 'vacancy',
+          action,
+          ...(compat ? {compatibilityScore: compat.score} : {}),
+          createdAt: serverTimestamp(),
+        });
+      }
 
       if (action === 'favorite') {
         showToast('Guardado en favoritos laborales.', 'success');

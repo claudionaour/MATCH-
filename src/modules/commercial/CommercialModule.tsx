@@ -350,7 +350,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       recipientName,
       targetId,
       targetTitle,
-      compatibilityExplanation: explanation,
+      ...(explanation ? {compatibilityExplanation: explanation} : {}),
       status: 'active',
     };
 
@@ -427,14 +427,16 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
 
     const interactionId = `ci_${firebaseUser.uid}_${item.id}_${action}`.slice(0, 120);
     try {
-      await setDoc(doc(db, 'commercialInteractions', interactionId), {
-        fromUid: firebaseUser.uid,
-        toUid: rawTarget.ownerId,
-        targetId: item.id,
-        targetKind: isNeed ? 'purchaseRequest' : 'product',
-        action,
-        createdAt: serverTimestamp(),
-      });
+      if (!myInteractions.some((i) => i.id === interactionId)) {
+        await setDoc(doc(db, 'commercialInteractions', interactionId), {
+          fromUid: firebaseUser.uid,
+          toUid: rawTarget.ownerId,
+          targetId: item.id,
+          targetKind: isNeed ? 'purchaseRequest' : 'product',
+          action,
+          createdAt: serverTimestamp(),
+        });
+      }
 
       if (action === 'favorite') {
         showToast('Guardado en favoritos.', 'success');
@@ -557,7 +559,6 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
         await setDoc(
           doc(db, 'businessProfiles', docId),
           {
-            ...myBusiness,
             businessName: bizName.trim(),
             commercialName: bizCommName.trim() || bizName.trim(),
             description: bizDesc.trim(),

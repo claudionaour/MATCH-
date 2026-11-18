@@ -60,30 +60,42 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
     const pubRef = doc(db, 'userPublicProfiles', user.uid);
     const isBootAdmin = user.email?.toLowerCase() === ADMIN_BOOTSTRAP_EMAIL.toLowerCase();
 
+    let snap;
     try {
-      const snap = await getDoc(userRef);
-      if (!snap.exists()) {
-        const defaultRoles: UserRole[] = isBootAdmin ? ['admin', 'buyer', 'seller'] : ['buyer', 'worker'];
-        const defaultModules: AppModule[] = ['commercial', 'employment'];
-        const newAccount: UserAccount = {
-          uid: user.uid,
-          email: user.email || '',
-          displayName: user.displayName || user.email?.split('@')[0] || 'Usuario MATCH+',
-          photoUrl: user.photoURL || '',
-          phone: '',
-          commune: 'Castro',
-          region: 'Región de Los Lagos (Piloto Chiloé)',
-          roles: defaultRoles,
-          activeModules: defaultModules,
-          notificationPrefs: DEFAULT_PREFS,
-          privacyConsentAt: new Date().toISOString(),
-          status: 'active',
-        };
+      snap = await getDoc(userRef);
+    } catch (err) {
+      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+    }
+
+    if (!snap.exists()) {
+      const defaultRoles: UserRole[] = isBootAdmin ? ['buyer', 'seller'] : ['buyer', 'worker'];
+      const defaultModules: AppModule[] = ['commercial', 'employment'];
+      const safeDisplayName = (user.displayName || user.email?.split('@')[0] || 'Usuario MATCH+').slice(0, 120);
+      const safePhotoUrl = (user.photoURL || '').slice(0, 1000);
+      const newAccount: UserAccount = {
+        uid: user.uid,
+        email: (user.email || '').slice(0, 200),
+        displayName: safeDisplayName,
+        photoUrl: safePhotoUrl,
+        phone: '',
+        commune: 'Castro',
+        region: 'Región de Los Lagos (Piloto Chiloé)',
+        roles: defaultRoles,
+        activeModules: defaultModules,
+        notificationPrefs: DEFAULT_PREFS,
+        privacyConsentAt: new Date().toISOString(),
+        status: 'active',
+      };
+      try {
         await setDoc(userRef, {
           ...newAccount,
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `users/${user.uid}`);
+      }
+      try {
         await setDoc(pubRef, {
           uid: user.uid,
           displayName: newAccount.displayName,
@@ -93,16 +105,16 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
           verified: false,
           updatedAt: serverTimestamp(),
         });
-        setUserAccount(newAccount);
-      } else {
-        const data = snap.data() as UserAccount;
-        setUserAccount({
-          ...data,
-          notificationPrefs: data.notificationPrefs || DEFAULT_PREFS,
-        });
+      } catch (err) {
+        handleFirestoreError(err, OperationType.CREATE, `userPublicProfiles/${user.uid}`);
       }
-    } catch (err) {
-      handleFirestoreError(err, OperationType.GET, `users/${user.uid}`);
+      setUserAccount(newAccount);
+    } else {
+      const data = snap.data() as UserAccount;
+      setUserAccount({
+        ...data,
+        notificationPrefs: data.notificationPrefs || DEFAULT_PREFS,
+      });
     }
   };
 
@@ -157,9 +169,10 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
     >
   ) => {
     if (!firebaseUser) return;
-    const safeRoles = updates.roles?.filter((r) => r !== 'admin' && r !== 'moderator');
+    const {roles: requestedRoles, ...restUpdates} = updates;
+    const safeRoles = requestedRoles?.filter((r) => r !== 'admin' && r !== 'moderator');
     const cleanUpdates = {
-      ...updates,
+      ...restUpdates,
       ...(safeRoles && safeRoles.length > 0 ? {roles: safeRoles} : {}),
       updatedAt: serverTimestamp(),
     };
@@ -168,13 +181,21 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
       await updateDoc(userRef, cleanUpdates);
       if (updates.displayName || updates.commune || updates.region) {
         await updateDoc(doc(db, 'userPublicProfiles', firebaseUser.uid), {
-          ...(updates.displayName ? {displayName: updates.displayName} : {}),
+          ...(updates.displayName ? {displayName: updates.displayName.slice(0, 120)} : {}),
           ...(updates.commune ? {commune: updates.commune} : {}),
           ...(updates.region ? {region: updates.region} : {}),
           updatedAt: serverTimestamp(),
         });
       }
-      setUserAccount((prev) => (prev ? {...prev, ...updates} : prev));
+      setUserAccount((prev) =>
+        prev
+          ? {
+              ...prev,
+              ...restUpdates,
+              ...(safeRoles && safeRoles.length > 0 ? {roles: safeRoles} : {}),
+            }
+          : prev
+      );
     } catch (err) {
       handleFirestoreError(err, OperationType.UPDATE, `users/${firebaseUser.uid}`);
     }
