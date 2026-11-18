@@ -24,7 +24,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-stretch">
           <div className="lg:col-span-6 flex flex-col justify-center space-y-6">
             <p className="text-xs font-semibold text-blue-700 dark:text-blue-400 tracking-wide">
-              Creado por Business Naour Group Ltda.
+              Creado en Chiloé para todo Chile.
             </p>
             <h1
               className="font-display font-extrabold tracking-tight text-slate-950 dark:text-white leading-[1.08]"
@@ -33,8 +33,8 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
               Conectamos necesidades con oportunidades reales.
             </h1>
             <p className="text-base sm:text-lg text-slate-600 dark:text-slate-300 leading-relaxed max-w-xl">
-              MATCH+ reúne en una sola aplicación tres motores independientes: comercio bidireccional, empleo con
-              compatibilidad explicable y publicidad local autogestionada con Flow.
+              Match+ reúne en una sola aplicación tres motores independientes: comercio bidireccional, bolsa de empleos
+              y publicidad para emprendimientos, comercio, empresas entre otros rubros.
             </p>
             <div className="flex flex-wrap items-center gap-3 pt-1">
               <button
@@ -130,7 +130,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
                 <span>03. MATCH ADVERTISING · CREA TU ANUNCIO</span>
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white">
-                Publicidad local segmentada con asistente de 10 pasos y pago en línea con Flow
+                Puedes publicar: publicidad para emprendimientos, comercio, empresas entre otros rubros.
               </h3>
               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
                 Cualquier emprendedor, artesano, comercio o empresa externa puede diseñar su anuncio desde el teléfono,
