@@ -1,0 +1,6 @@
+{
+  "name": "MATCH+",
+  "description": "Plataforma integral de coincidencias comerciales, laborales y publicidad local segmentada. Conectamos necesidades con oportunidades desde Chiloé para todo Chile.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,406 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "Cuenta privada del usuario y roles asignados en MATCH+.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "phone": { "type": "string", "maxLength": 40 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "roles": { "type": "array", "description": "Roles funcionales del usuario." },
+        "activeModules": { "type": "array", "description": "Modulos activos (commercial, employment, advertising)." },
+        "status": { "type": "string", "enum": ["active", "suspended", "deleted"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "displayName", "roles", "status", "createdAt", "updatedAt"]
+    },
+    "UserPublicProfile": {
+      "title": "UserPublicProfile",
+      "description": "Perfil publico sin PII para tarjetas e interaccion.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "photoUrl": { "type": "string", "maxLength": 1000 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "verified": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "displayName", "updatedAt"]
+    },
+    "BusinessProfile": {
+      "title": "BusinessProfile",
+      "description": "Perfil comercial de vendedor o comercio en MATCH COMERCIAL.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "businessName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "commercialName": { "type": "string", "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "category": { "type": "string", "maxLength": 80 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "hours": { "type": "string", "maxLength": 200 },
+        "salesTerms": { "type": "string", "maxLength": 500 },
+        "availability": { "type": "string", "enum": ["available", "limited", "unavailable"], "maxLength": 20 },
+        "verified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "paused"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "businessName", "category", "commune", "region", "status", "createdAt", "updatedAt"]
+    },
+    "Product": {
+      "title": "Product",
+      "description": "Producto o servicio publicado en MATCH COMERCIAL.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "itemType": { "type": "string", "enum": ["product", "service"], "maxLength": 20 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "category": { "type": "string", "maxLength": 80 },
+        "priceCLP": { "type": "number" },
+        "sellerName": { "type": "string", "maxLength": 140 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "availability": { "type": "string", "enum": ["available", "limited", "unavailable"], "maxLength": 20 },
+        "verified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "paused", "archived"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "itemType", "title", "category", "priceCLP", "commune", "region", "status", "createdAt", "updatedAt"]
+    },
+    "PurchaseRequest": {
+      "title": "PurchaseRequest",
+      "description": "Solicitud de compra publicada por un comprador.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "buyerName": { "type": "string", "maxLength": 120 },
+        "title": { "type": "string", "minLength": 3, "maxLength": 160 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "category": { "type": "string", "maxLength": 80 },
+        "minBudgetCLP": { "type": "number" },
+        "maxBudgetCLP": { "type": "number" },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "status": { "type": "string", "enum": ["open", "matched", "closed"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "buyerName", "title", "category", "maxBudgetCLP", "commune", "region", "status", "createdAt", "updatedAt"]
+    },
+    "WorkerProfile": {
+      "title": "WorkerProfile",
+      "description": "Perfil profesional publico sin datos sensibles ni criterios discriminatorios.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "displayName": { "type": "string", "minLength": 2, "maxLength": 120 },
+        "headline": { "type": "string", "maxLength": 160 },
+        "profession": { "type": "string", "maxLength": 100 },
+        "skills": { "type": "array" },
+        "experienceYears": { "type": "number" },
+        "educationLevel": { "type": "string", "maxLength": 80 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "availability": { "type": "string", "maxLength": 60 },
+        "preferredSchedule": { "type": "string", "maxLength": 60 },
+        "modality": { "type": "string", "enum": ["presencial", "remoto", "hibrido"], "maxLength": 20 },
+        "salaryExpectationCLP": { "type": "number" },
+        "showSalaryExpectation": { "type": "boolean" },
+        "allowDirectContact": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "paused"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "displayName", "profession", "skills", "experienceYears", "commune", "region", "modality", "status", "createdAt", "updatedAt"]
+    },
+    "WorkerPrivateCV": {
+      "title": "WorkerPrivateCV",
+      "description": "Informacion privada del curriculum del trabajador.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullSummary": { "type": "string", "maxLength": 3000 },
+        "contactEmail": { "type": "string", "maxLength": 200 },
+        "contactPhone": { "type": "string", "maxLength": 40 },
+        "cvUrl": { "type": "string", "maxLength": 1000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "updatedAt"]
+    },
+    "Company": {
+      "title": "Company",
+      "description": "Perfil de empresa contratante en MATCH LABORAL.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "commercialName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "sector": { "type": "string", "maxLength": 80 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "verified": { "type": "boolean" },
+        "status": { "type": "string", "enum": ["active", "paused"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "commercialName", "sector", "commune", "region", "status", "createdAt", "updatedAt"]
+    },
+    "JobVacancy": {
+      "title": "JobVacancy",
+      "description": "Vacante laboral publicada por una empresa.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "companyName": { "type": "string", "maxLength": 140 },
+        "title": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 2000 },
+        "mandatorySkills": { "type": "array" },
+        "desiredSkills": { "type": "array" },
+        "minExperienceYears": { "type": "number" },
+        "requiredEducation": { "type": "string", "maxLength": 80 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "modality": { "type": "string", "enum": ["presencial", "remoto", "hibrido"], "maxLength": 20 },
+        "schedule": { "type": "string", "maxLength": 60 },
+        "contractType": { "type": "string", "maxLength": 60 },
+        "salaryMinCLP": { "type": "number" },
+        "salaryMaxCLP": { "type": "number" },
+        "status": { "type": "string", "enum": ["active", "paused", "expired", "closed"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "companyName", "title", "mandatorySkills", "minExperienceYears", "commune", "region", "modality", "status", "createdAt", "updatedAt"]
+    },
+    "Interaction": {
+      "title": "Interaction",
+      "description": "Interaccion de deslizamiento o interes entre partes.",
+      "type": "object",
+      "properties": {
+        "fromUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "toUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetKind": { "type": "string", "maxLength": 40 },
+        "action": { "type": "string", "enum": ["like", "pass", "favorite"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["fromUid", "toUid", "targetId", "targetKind", "action", "createdAt"]
+    },
+    "Match": {
+      "title": "Match",
+      "description": "Coincidencia confirmada por interes mutuo.",
+      "type": "object",
+      "properties": {
+        "module": { "type": "string", "enum": ["commercial", "employment"], "maxLength": 20 },
+        "participantIds": { "type": "array" },
+        "initiatorUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "recipientUid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "targetTitle": { "type": "string", "maxLength": 160 },
+        "status": { "type": "string", "enum": ["active", "blocked", "archived"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["module", "participantIds", "initiatorUid", "recipientUid", "targetId", "status", "createdAt", "updatedAt"]
+    },
+    "Conversation": {
+      "title": "Conversation",
+      "description": "Conversacion privada habilitada tras un match.",
+      "type": "object",
+      "properties": {
+        "matchId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "module": { "type": "string", "enum": ["commercial", "employment"], "maxLength": 20 },
+        "participantIds": { "type": "array" },
+        "lastMessage": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["active", "blocked"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["matchId", "module", "participantIds", "status", "createdAt", "updatedAt"]
+    },
+    "Message": {
+      "title": "Message",
+      "description": "Mensaje individual en una conversacion privada.",
+      "type": "object",
+      "properties": {
+        "senderId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "text": { "type": "string", "maxLength": 2000 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderId", "text", "read", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Notificacion del sistema para un usuario.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "type": { "type": "string", "maxLength": 40 },
+        "title": { "type": "string", "maxLength": 140 },
+        "body": { "type": "string", "maxLength": 500 },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "title", "body", "read", "createdAt"]
+    },
+    "Advertiser": {
+      "title": "Advertiser",
+      "description": "Cuenta de anunciante externo o registrado.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "advertiserType": { "type": "string", "enum": ["external", "registered"], "maxLength": 20 },
+        "businessName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "responsibleName": { "type": "string", "maxLength": 120 },
+        "category": { "type": "string", "maxLength": 80 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "contactEmail": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["active", "suspended"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "advertiserType", "businessName", "category", "commune", "region", "status", "createdAt", "updatedAt"]
+    },
+    "AdPackage": {
+      "title": "AdPackage",
+      "description": "Plan o tarifa publicitaria configurable desde administracion.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "maxLength": 100 },
+        "billingCycle": { "type": "string", "enum": ["monthly", "temporary"], "maxLength": 20 },
+        "durationDays": { "type": "number" },
+        "priceCLP": { "type": "number" },
+        "priorityWeight": { "type": "number" },
+        "active": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "billingCycle", "durationDays", "priceCLP", "priorityWeight", "active", "updatedAt"]
+    },
+    "AdCampaign": {
+      "title": "AdCampaign",
+      "description": "Campana publicitaria creada en CREA TU ANUNCIO.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "advertiserId": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "businessName": { "type": "string", "maxLength": 140 },
+        "title": { "type": "string", "minLength": 3, "maxLength": 120 },
+        "description": { "type": "string", "maxLength": 600 },
+        "ctaLabel": { "type": "string", "maxLength": 60 },
+        "ctaDestination": { "type": "string", "maxLength": 500 },
+        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "packageId": { "type": "string", "maxLength": 100 },
+        "finalAmountCLP": { "type": "number" },
+        "paymentStatus": { "type": "string", "enum": ["pending_payment", "pending_confirmation", "confirmed", "rejected", "cancelled", "expired"], "maxLength": 30 },
+        "moderationStatus": { "type": "string", "enum": ["draft", "pending_review", "approved", "rejected", "active", "paused", "finished", "cancelled"], "maxLength": 30 },
+        "rejectionReason": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "advertiserId", "businessName", "title", "packageId", "finalAmountCLP", "paymentStatus", "moderationStatus", "createdAt", "updatedAt"]
+    },
+    "AdDraft": {
+      "title": "AdDraft",
+      "description": "Borrador autoguardado del asistente CREA TU ANUNCIO.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "step": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "step", "updatedAt"]
+    },
+    "AdOrder": {
+      "title": "AdOrder",
+      "description": "Orden de pago y conciliacion de transacciones.",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "campaignId": { "type": "string", "maxLength": 128 },
+        "engine": { "type": "string", "enum": ["commercial", "employment", "advertising"], "maxLength": 20 },
+        "commerceOrder": { "type": "string", "maxLength": 128 },
+        "amountCLP": { "type": "number" },
+        "paymentMethod": { "type": "string", "enum": ["flow", "transfer"], "maxLength": 20 },
+        "status": { "type": "string", "enum": ["pending", "pending_confirmation", "confirmed", "rejected", "cancelled", "expired"], "maxLength": 30 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "engine", "commerceOrder", "amountCLP", "paymentMethod", "status", "createdAt", "updatedAt"]
+    },
+    "Report": {
+      "title": "Report",
+      "description": "Denuncia de publicacion, oferta laboral o anuncio.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "targetType": { "type": "string", "maxLength": 40 },
+        "targetId": { "type": "string", "maxLength": 128 },
+        "reason": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["open", "reviewed", "dismissed"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["reporterId", "targetType", "targetId", "reason", "status", "createdAt"]
+    },
+    "SystemSettings": {
+      "title": "SystemSettings",
+      "description": "Parametros globales de rotacion, matching, ubicaciones y politicas.",
+      "type": "object",
+      "properties": {
+        "updatedBy": { "type": "string", "maxLength": 128 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["updatedAt"]
+    },
+    "AuditLog": {
+      "title": "AuditLog",
+      "description": "Registro de auditoria administrativa.",
+      "type": "object",
+      "properties": {
+        "actorUid": { "type": "string", "maxLength": 128 },
+        "action": { "type": "string", "maxLength": 100 },
+        "summary": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["actorUid", "action", "summary", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": { "schema": { "$ref": "#/entities/User" }, "description": "Cuentas privadas de usuario y roles." },
+    "/userPublicProfiles/{userId}": { "schema": { "$ref": "#/entities/UserPublicProfile" }, "description": "Perfiles publicos sin PII." },
+    "/businessProfiles/{businessId}": { "schema": { "$ref": "#/entities/BusinessProfile" }, "description": "Perfiles de vendedores." },
+    "/products/{productId}": { "schema": { "$ref": "#/entities/Product" }, "description": "Catalogo de productos y servicios." },
+    "/purchaseRequests/{requestId}": { "schema": { "$ref": "#/entities/PurchaseRequest" }, "description": "Solicitudes de compra de compradores." },
+    "/workerProfiles/{workerId}": { "schema": { "$ref": "#/entities/WorkerProfile" }, "description": "Perfiles profesionales publicos." },
+    "/workerPrivateCVs/{workerId}": { "schema": { "$ref": "#/entities/WorkerPrivateCV" }, "description": "CV y contacto privado de trabajadores." },
+    "/companies/{companyId}": { "schema": { "$ref": "#/entities/Company" }, "description": "Empresas contratantes." },
+    "/jobVacancies/{vacancyId}": { "schema": { "$ref": "#/entities/JobVacancy" }, "description": "Vacantes laborales." },
+    "/commercialInteractions/{interactionId}": { "schema": { "$ref": "#/entities/Interaction" }, "description": "Deslizamientos comerciales." },
+    "/employmentInteractions/{interactionId}": { "schema": { "$ref": "#/entities/Interaction" }, "description": "Deslizamientos laborales." },
+    "/matches/{matchId}": { "schema": { "$ref": "#/entities/Match" }, "description": "Coincidencias mutuas." },
+    "/conversations/{conversationId}": { "schema": { "$ref": "#/entities/Conversation" }, "description": "Salas de chat privadas." },
+    "/conversations/{conversationId}/messages/{messageId}": { "schema": { "$ref": "#/entities/Message" }, "description": "Mensajes en tiempo real." },
+    "/notifications/{notificationId}": { "schema": { "$ref": "#/entities/Notification" }, "description": "Notificaciones por usuario." },
+    "/advertisers/{advertiserId}": { "schema": { "$ref": "#/entities/Advertiser" }, "description": "Cuentas de anunciantes." },
+    "/adPackages/{packageId}": { "schema": { "$ref": "#/entities/AdPackage" }, "description": "Tarifas y planes publicitarios." },
+    "/adCampaigns/{campaignId}": { "schema": { "$ref": "#/entities/AdCampaign" }, "description": "Campanas y anuncios publicitarios." },
+    "/adDrafts/{draftId}": { "schema": { "$ref": "#/entities/AdDraft" }, "description": "Borradores de anuncios." },
+    "/adOrders/{orderId}": { "schema": { "$ref": "#/entities/AdOrder" }, "description": "Ordenes de pago y conciliacion." },
+    "/reports/{reportId}": { "schema": { "$ref": "#/entities/Report" }, "description": "Denuncias y reportes." },
+    "/systemSettings/{settingId}": { "schema": { "$ref": "#/entities/SystemSettings" }, "description": "Configuracion de sistema y rotacion." },
+    "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Logs de auditoria administrativa." }
+  }
+}
