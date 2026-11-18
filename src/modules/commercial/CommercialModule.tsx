@@ -30,11 +30,13 @@ import {useToast} from '../../contexts/ToastContext';
 import {db, handleFirestoreError, OperationType} from '../../services/firebase/firebaseClient';
 import {
   COMMERCIAL_CATEGORIES,
+  DEFAULT_REGION,
   DEMO_ADS,
   DEMO_PRODUCTS,
   DEMO_PURCHASE_REQUESTS,
   formatCLP,
-  REGIONS_CATALOG,
+  getRegionEntry,
+  normalizeRegionName,
 } from '../../services/config/chileCatalog';
 import {computeCommercialMatchScore} from '../../services/matching/matchingEngine';
 import {scoreAndRankAds, shouldShowAdAtOrganicIndex} from '../../services/advertising/adRotationEngine';
@@ -114,7 +116,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
   const [prodCategory, setProdCategory] = useState(COMMERCIAL_CATEGORIES[0]);
   const [prodPrice, setProdPrice] = useState('');
   const [prodCommune, setProdCommune] = useState(userAccount?.commune || 'Castro');
-  const [prodRegion, setProdRegion] = useState(userAccount?.region || REGIONS_CATALOG[0].region);
+  const [prodRegion, setProdRegion] = useState(normalizeRegionName(userAccount?.region));
   const [prodImageUrl, setProdImageUrl] = useState('/src/assets/images/commercial_garlic_chilote_1795023911044.jpg');
   const [prodAvail, setProdAvail] = useState<'available' | 'limited' | 'unavailable'>('available');
   const [prodDelivery, setProdDelivery] = useState('Retiro en local, Despacho comunal');
@@ -535,7 +537,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
         minBudgetCLP: minB,
         maxBudgetCLP: maxB,
         commune: reqCommune,
-        region: userAccount?.region || REGIONS_CATALOG[0].region,
+        region: normalizeRegionName(userAccount?.region),
         urgency: reqUrgency,
         status: 'open',
         createdAt: serverTimestamp(),
@@ -564,7 +566,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
             description: bizDesc.trim(),
             category: bizCategory,
             commune: bizCommune,
-            region: userAccount?.region || REGIONS_CATALOG[0].region,
+            region: normalizeRegionName(userAccount?.region),
             contactInfo: bizContact.trim(),
             hours: bizHours.trim(),
             salesTerms: bizTerms.trim(),
@@ -580,7 +582,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           description: bizDesc.trim(),
           category: bizCategory,
           commune: bizCommune,
-          region: userAccount?.region || REGIONS_CATALOG[0].region,
+          region: normalizeRegionName(userAccount?.region) || DEFAULT_REGION,
           contactInfo: bizContact.trim(),
           hours: bizHours.trim(),
           salesTerms: bizTerms.trim(),
@@ -776,7 +778,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                 className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
               >
                 <option value="Todas">Todas las comunas</option>
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(userAccount?.region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1052,7 +1054,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                 onChange={(e) => setProdCommune(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm"
               >
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(prodRegion).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1198,7 +1200,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
               onChange={(e) => setReqCommune(e.target.value)}
               className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm"
             >
-              {REGIONS_CATALOG[0].communes.map((c) => (
+              {getRegionEntry(userAccount?.region).communes.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
@@ -1274,7 +1276,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                 onChange={(e) => setBizCommune(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm"
               >
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(userAccount?.region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>

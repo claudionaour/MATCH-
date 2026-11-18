@@ -25,6 +25,8 @@ import {
   COMMERCIAL_CATEGORIES,
   DEFAULT_AD_PACKAGES,
   formatCLP,
+  getRegionEntry,
+  normalizeRegionName,
   REGIONS_CATALOG,
 } from '../../services/config/chileCatalog';
 import {
@@ -111,7 +113,7 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
     editingCampaign?.targetCommune || existingAdvertiser?.commune || userAccount?.commune || 'Castro'
   );
   const [region, setRegion] = useState(
-    editingCampaign?.targetRegion || existingAdvertiser?.region || REGIONS_CATALOG[0].region
+    normalizeRegionName(editingCampaign?.targetRegion || existingAdvertiser?.region || userAccount?.region)
   );
   const [contactEmail, setContactEmail] = useState(
     existingAdvertiser?.contactEmail || userAccount?.email || ''
@@ -545,7 +547,7 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold">Categoría de actividad</label>
               <select
@@ -561,13 +563,31 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
               </select>
             </div>
             <div className="space-y-1">
+              <label className="text-xs font-semibold">Región</label>
+              <select
+                value={region}
+                onChange={(e) => {
+                  const nextReg = e.target.value;
+                  setRegion(nextReg);
+                  setCommune(getRegionEntry(nextReg).communes[0]);
+                }}
+                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm"
+              >
+                {REGIONS_CATALOG.map((r) => (
+                  <option key={r.region} value={r.region}>
+                    {r.region}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="space-y-1">
               <label className="text-xs font-semibold">Comuna</label>
               <select
                 value={commune}
                 onChange={(e) => setCommune(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2.5 text-sm"
               >
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>

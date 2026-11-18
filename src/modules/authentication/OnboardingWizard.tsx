@@ -2,7 +2,7 @@ import React, {useState} from 'react';
 import {ArrowRight, Briefcase, Check, Megaphone, Store} from 'lucide-react';
 import {useAuth} from '../../contexts/AuthContext';
 import {useToast} from '../../contexts/ToastContext';
-import {REGIONS_CATALOG} from '../../services/config/chileCatalog';
+import {DEFAULT_COMMUNE, getRegionEntry, normalizeRegionName, REGIONS_CATALOG} from '../../services/config/chileCatalog';
 import {AppModule, UserRole} from '../../types';
 
 interface OnboardingWizardProps {
@@ -14,8 +14,14 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({onComplete}) 
   const {showToast} = useToast();
 
   const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [region, setRegion] = useState(userAccount?.region || REGIONS_CATALOG[0].region);
-  const [commune, setCommune] = useState(userAccount?.commune || 'Castro');
+  const [region, setRegion] = useState(() => normalizeRegionName(userAccount?.region));
+  const [commune, setCommune] = useState(() => {
+    const entry = getRegionEntry(userAccount?.region);
+    if (userAccount?.commune && entry.communes.includes(userAccount.commune)) {
+      return userAccount.commune;
+    }
+    return entry.communes.includes(DEFAULT_COMMUNE) ? DEFAULT_COMMUNE : entry.communes[0];
+  });
   const [selectedModules, setSelectedModules] = useState<AppModule[]>(
     userAccount?.activeModules || ['commercial', 'employment']
   );
@@ -24,7 +30,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({onComplete}) 
   );
   const [saving, setSaving] = useState(false);
 
-  const currentRegionObj = REGIONS_CATALOG.find((r) => r.region === region) || REGIONS_CATALOG[0];
+  const currentRegionObj = getRegionEntry(region);
 
   const toggleModule = (mod: AppModule) => {
     setSelectedModules((prev) =>
@@ -83,7 +89,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({onComplete}) 
         {step === 1 && (
           <div className="space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Iniciamos nuestro piloto en Chiloé y Los Lagos, con cobertura expandible a todo Chile.
+              Selecciona tu región y comuna para mostrar oportunidades, vacantes y ofertas cercanas a tu ubicación.
             </p>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
@@ -93,8 +99,8 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({onComplete}) 
                   onChange={(e) => {
                     const nextReg = e.target.value;
                     setRegion(nextReg);
-                    const found = REGIONS_CATALOG.find((r) => r.region === nextReg);
-                    if (found) setCommune(found.communes[0]);
+                    const found = getRegionEntry(nextReg);
+                    setCommune(found.communes[0]);
                   }}
                   className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
                 >

@@ -12,7 +12,7 @@ import {
   updateProfile,
 } from 'firebase/auth';
 import {doc, getDoc, serverTimestamp, setDoc, updateDoc} from 'firebase/firestore';
-import {ADMIN_BOOTSTRAP_EMAIL} from '../services/config/chileCatalog';
+import {ADMIN_BOOTSTRAP_EMAIL, DEFAULT_COMMUNE, DEFAULT_REGION} from '../services/config/chileCatalog';
 import {auth, db, handleFirestoreError, OperationType} from '../services/firebase/firebaseClient';
 import {AppModule, NotificationPreferences, UserAccount, UserRole} from '../types';
 
@@ -78,8 +78,8 @@ export const AuthProvider: React.FC<{children: React.ReactNode}> = ({children}) 
         displayName: safeDisplayName,
         photoUrl: safePhotoUrl,
         phone: '',
-        commune: 'Castro',
-        region: 'Región de Los Lagos (Piloto Chiloé)',
+        commune: DEFAULT_COMMUNE,
+        region: DEFAULT_REGION,
         roles: defaultRoles,
         activeModules: defaultModules,
         notificationPrefs: DEFAULT_PREFS,

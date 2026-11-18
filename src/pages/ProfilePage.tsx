@@ -2,7 +2,7 @@ import React, {useEffect, useState} from 'react';
 import {Briefcase, Check, Megaphone, Store, User} from 'lucide-react';
 import {useAuth} from '../contexts/AuthContext';
 import {useToast} from '../contexts/ToastContext';
-import {REGIONS_CATALOG} from '../services/config/chileCatalog';
+import {DEFAULT_REGION, getRegionEntry, normalizeRegionName, REGIONS_CATALOG} from '../services/config/chileCatalog';
 import {AppModule, AppSection, UserRole} from '../types';
 
 interface ProfilePageProps {
@@ -23,7 +23,7 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({onNavigate}) => {
 
   const [displayName, setDisplayName] = useState(userAccount?.displayName || '');
   const [phone, setPhone] = useState(userAccount?.phone || '');
-  const [region, setRegion] = useState(userAccount?.region || REGIONS_CATALOG[0].region);
+  const [region, setRegion] = useState(() => normalizeRegionName(userAccount?.region));
   const [commune, setCommune] = useState(userAccount?.commune || 'Castro');
   const [roles, setRoles] = useState<UserRole[]>(userAccount?.roles || ['buyer']);
   const [activeModules, setActiveModules] = useState<AppModule[]>(
@@ -35,13 +35,15 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({onNavigate}) => {
     if (!userAccount) return;
     setDisplayName(userAccount.displayName);
     setPhone(userAccount.phone || '');
-    setRegion(userAccount.region);
-    setCommune(userAccount.commune);
+    const normReg = normalizeRegionName(userAccount.region);
+    setRegion(normReg);
+    const entry = getRegionEntry(normReg);
+    setCommune(entry.communes.includes(userAccount.commune) ? userAccount.commune : entry.communes[0]);
     setRoles(userAccount.roles);
     setActiveModules(userAccount.activeModules);
   }, [userAccount]);
 
-  const currentRegionObj = REGIONS_CATALOG.find((r) => r.region === region) || REGIONS_CATALOG[0];
+  const currentRegionObj = getRegionEntry(region || DEFAULT_REGION);
 
   const toggleRole = (role: UserRole) => {
     setRoles((prev) =>
@@ -127,8 +129,8 @@ export const ProfilePage: React.FC<ProfilePageProps> = ({onNavigate}) => {
                 onChange={(e) => {
                   const nextRegion = e.target.value;
                   setRegion(nextRegion);
-                  const found = REGIONS_CATALOG.find((r) => r.region === nextRegion);
-                  if (found) setCommune(found.communes[0]);
+                  const found = getRegionEntry(nextRegion);
+                  setCommune(found.communes[0]);
                 }}
                 className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
               >

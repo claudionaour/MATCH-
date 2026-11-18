@@ -31,8 +31,9 @@ import {
   DEMO_VACANCIES,
   DEMO_WORKERS,
   formatCLP,
+  getRegionEntry,
   LABOR_CATEGORIES,
-  REGIONS_CATALOG,
+  normalizeRegionName,
 } from '../../services/config/chileCatalog';
 import {computeJobCompatibility} from '../../services/matching/matchingEngine';
 import {scoreAndRankAds, shouldShowAdAtOrganicIndex} from '../../services/advertising/adRotationEngine';
@@ -275,7 +276,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
       educationLevel: wEducation,
       certifications: [],
       commune: wCommune,
-      region: userAccount?.region || REGIONS_CATALOG[0].region,
+      region: normalizeRegionName(userAccount?.region),
       availability: wAvail,
       preferredSchedule: wSchedule,
       modality: wModality,
@@ -555,7 +556,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
           educationLevel: wEducation,
           certifications: [],
           commune: wCommune,
-          region: userAccount?.region || REGIONS_CATALOG[0].region,
+          region: normalizeRegionName(userAccount?.region),
           availability: wAvail,
           preferredSchedule: wSchedule,
           modality: wModality,
@@ -604,7 +605,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
           description: cDesc.trim(),
           sector: cSector,
           commune: cCommune,
-          region: userAccount?.region || REGIONS_CATALOG[0].region,
+          region: normalizeRegionName(userAccount?.region),
           contactInfo: cContact.trim(),
           website: cWebsite.trim(),
           verified: myCompany?.verified || false,
@@ -640,7 +641,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
         requiredEducation: jReqEdu,
         category: jCat,
         commune: jCommune,
-        region: userAccount?.region || REGIONS_CATALOG[0].region,
+        region: normalizeRegionName(userAccount?.region),
         modality: jModality,
         schedule: jSchedule,
         contractType: jContract,
@@ -810,7 +811,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
                 className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
               >
                 <option value="Todas">Todas las comunas</option>
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(userAccount?.region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1049,7 +1050,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
                 onChange={(e) => setWCommune(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm"
               >
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(userAccount?.region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1215,7 +1216,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
                 onChange={(e) => setCCommune(e.target.value)}
                 className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm"
               >
-                {REGIONS_CATALOG[0].communes.map((c) => (
+                {getRegionEntry(userAccount?.region).communes.map((c) => (
                   <option key={c} value={c}>
                     {c}
                   </option>
@@ -1387,7 +1388,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
               onChange={(e) => setJCommune(e.target.value)}
               className="rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-sm"
             >
-              {REGIONS_CATALOG[0].communes.map((c) => (
+              {getRegionEntry(userAccount?.region).communes.map((c) => (
                 <option key={c} value={c}>
                   {c}
                 </option>
