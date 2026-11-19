@@ -3,6 +3,7 @@ import {
   addDoc,
   collection,
   doc,
+  getDoc,
   onSnapshot,
   serverTimestamp,
   setDoc,
@@ -13,26 +14,67 @@ import {
   BarChart3,
   CheckCircle2,
   CreditCard,
+  Search,
   ShieldCheck,
   Sliders,
+  Users,
   XCircle,
 } from 'lucide-react';
 import {useAuth} from '../../contexts/AuthContext';
 import {useToast} from '../../contexts/ToastContext';
 import {db, handleFirestoreError, OperationType} from '../../services/firebase/firebaseClient';
-import {DEFAULT_AD_PACKAGES, DEFAULT_ROTATION_CONFIG, formatCLP} from '../../services/config/chileCatalog';
+import {
+  ADMIN_BOOTSTRAP_EMAIL,
+  DEFAULT_AD_PACKAGES,
+  DEFAULT_ROTATION_CONFIG,
+  formatCLP,
+  isPaymentExemptEmail,
+} from '../../services/config/chileCatalog';
 import {
   AdCampaign,
   AdOrder,
   AdPackage,
   AdRotationConfig,
+  AppModule,
   AuditLogEntry,
   CommercialProduct,
   JobVacancy,
   MatchRecord,
+  MicroStore,
   ReportRecord,
   UserAccount,
+  UserRole,
 } from '../../types';
+import {getTimestampMillis, sortByCreatedDesc} from '../../utils/sortNewest';
+
+const ROLE_LABELS: Record<UserRole, string> = {
+  buyer: 'Comprador',
+  seller: 'Vendedor',
+  mixed: 'Mixto',
+  worker: 'Trabajador',
+  company: 'Empresa',
+  external_advertiser: 'Anunciante ext.',
+  registered_advertiser: 'Anunciante reg.',
+  moderator: 'Moderador',
+  admin: 'Admin',
+};
+
+const MODULE_LABELS: Record<AppModule, string> = {
+  commercial: 'Comercial',
+  employment: 'Laboral',
+  advertising: 'Publicidad',
+};
+
+const formatRegistrationDate = (value: unknown): string => {
+  if (!value) return 'Reciente';
+  const ms = getTimestampMillis(value);
+  if (!ms) return '—';
+  return new Date(ms).toLocaleDateString('es-CL', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  });
+};
 
 interface AdminPanelProps {
   rotationConfig: AdRotationConfig;
@@ -43,9 +85,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
   const {firebaseUser, isAdmin} = useAuth();
   const {showToast} = useToast();
 
-  const [tab, setTab] = useState<'overview' | 'moderation' | 'tariffs' | 'finance' | 'audit'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'moderation' | 'tariffs' | 'finance' | 'audit'>('overview');
 
   const [users, setUsers] = useState<UserAccount[]>([]);
+  const [userSearch, setUserSearch] = useState('');
+  const [userStatusFilter, setUserStatusFilter] = useState<'all' | 'active' | 'suspended'>('all');
   const [products, setProducts] = useState<CommercialProduct[]>([]);
   const [vacancies, setVacancies] = useState<JobVacancy[]>([]);
   const [matches, setMatches] = useState<MatchRecord[]>([]);
@@ -69,7 +113,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
     const unsubs = [
       onSnapshot(
         collection(db, 'users'),
-        (s) => setUsers(s.docs.map((d) => d.data() as UserAccount)),
+        (s) => setUsers(sortByCreatedDesc(s.docs.map((d) => d.data() as UserAccount))),
         (err) => handleFirestoreError(err, OperationType.LIST, 'users')
       ),
       onSnapshot(
@@ -94,7 +138,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
       ),
       onSnapshot(
         collection(db, 'adOrders'),
-        (s) => setOrders(s.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdOrder, 'id'>)}))),
+        (s) =>
+          setOrders(
+            sortByCreatedDesc(s.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdOrder, 'id'>)})))
+          ),
         (err) => handleFirestoreError(err, OperationType.LIST, 'adOrders')
       ),
       onSnapshot(
@@ -161,6 +208,41 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
         status: 'confirmed',
         updatedAt: serverTimestamp(),
       });
+
+      if (order.orderType === 'microstore_quota') {
+        const storeId = `store_${order.ownerId}`;
+        const storeRef = doc(db, 'microStores', storeId);
+        const storeSnap = await getDoc(storeRef);
+        if (storeSnap.exists()) {
+          const storeData = storeSnap.data() as Omit<MicroStore, 'id'>;
+          const nextExtra = (storeData.extraQuota || 0) + 5;
+          await updateDoc(storeRef, {
+            extraQuota: nextExtra,
+            maxProductsLimit: (storeData.freeLimit || 3) + nextExtra,
+            planPacksCount: (storeData.planPacksCount || 0) + 1,
+            updatedAt: serverTimestamp(),
+          });
+        }
+        await addDoc(collection(db, 'notifications'), {
+          userId: order.ownerId,
+          type: 'payment',
+          title: 'Plan Microtienda activado (+5 productos)',
+          body: `Tu pago (${order.commerceOrder}) fue confirmado. Ya tienes +5 cupos mensuales en tu Microtienda.`,
+          module: 'commercial',
+          relatedId: storeId,
+          read: false,
+          createdAt: serverTimestamp(),
+        });
+        await recordAudit(
+          'confirm_microstore_quota',
+          'microStores',
+          storeId,
+          `Pago confirmado (${order.commerceOrder}) y +5 cupos agregados a ${storeId}`
+        );
+        showToast('Pago confirmado y +5 productos agregados a la Microtienda.', 'success');
+        return;
+      }
+
       if (order.campaignId) {
         const linked = campaigns.find((c) => c.id === order.campaignId);
         await updateDoc(doc(db, 'adCampaigns', order.campaignId), {
@@ -317,6 +399,48 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
     }
   };
 
+  const handleToggleUserStatus = async (user: UserAccount) => {
+    if (user.email.toLowerCase() === ADMIN_BOOTSTRAP_EMAIL.toLowerCase()) {
+      showToast('La cuenta administrativa principal no puede suspenderse.', 'error');
+      return;
+    }
+    const nextStatus: UserAccount['status'] = user.status === 'active' ? 'suspended' : 'active';
+    try {
+      await updateDoc(doc(db, 'users', user.uid), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      await recordAudit(
+        `user_${nextStatus}`,
+        'users',
+        user.uid,
+        `Usuario ${user.email} marcado como ${nextStatus}`
+      );
+      showToast(
+        nextStatus === 'suspended' ? `Usuario ${user.displayName} suspendido.` : `Usuario ${user.displayName} reactivado.`,
+        'success'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `users/${user.uid}`);
+    }
+  };
+
+  const filteredUsers = useMemo(() => {
+    const q = userSearch.trim().toLowerCase();
+    return users.filter((u) => {
+      if (userStatusFilter !== 'all' && u.status !== userStatusFilter) return false;
+      if (!q) return true;
+      return (
+        u.displayName.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.commune || '').toLowerCase().includes(q) ||
+        (u.region || '').toLowerCase().includes(q) ||
+        (u.phone || '').toLowerCase().includes(q) ||
+        u.uid.toLowerCase().includes(q)
+      );
+    });
+  }, [users, userSearch, userStatusFilter]);
+
   if (!isAdmin) {
     return (
       <div className="rounded-2xl border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 p-8 text-center space-y-2">
@@ -334,6 +458,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
   const pendingCampaigns = campaigns.filter(
     (c) => c.moderationStatus === 'pending_review' || c.moderationStatus === 'approved'
   );
+  const activeUsersCount = users.filter((u) => u.status === 'active').length;
+  const suspendedUsersCount = users.filter((u) => u.status === 'suspended').length;
 
   return (
     <div className="space-y-6">
@@ -352,6 +478,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
       <div className="flex flex-wrap gap-2 border-b border-slate-200 dark:border-slate-800 pb-3">
         {[
           {id: 'overview', label: 'Panel general', icon: <BarChart3 className="w-4 h-4" />},
+          {id: 'users', label: `Usuarios inscritos (${users.length})`, icon: <Users className="w-4 h-4" />},
           {
             id: 'moderation',
             label: `Moderación y Denuncias (${pendingCampaigns.length + openReports.length})`,
@@ -365,7 +492,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
             key={item.id}
             type="button"
             onClick={() => setTab(item.id as typeof tab)}
-            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold min-h-[40px] ${
+            className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold min-h-[40px] whitespace-nowrap shrink-0 ${
               tab === item.id
                 ? 'bg-blue-700 text-white'
                 : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
@@ -380,12 +507,16 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
       {tab === 'overview' && (
         <div className="space-y-6">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+            <button
+              type="button"
+              onClick={() => setTab('users')}
+              className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 text-left hover:border-blue-600 transition-colors"
+            >
               <p className="text-xs text-slate-500">Usuarios registrados</p>
               <p className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
                 {users.length}
               </p>
-            </div>
+            </button>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
               <p className="text-xs text-slate-500">Productos / Vacantes</p>
               <p className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
@@ -837,6 +968,185 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
                     )}
                   </div>
                 ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {tab === 'users' && (
+        <div className="space-y-4">
+          {/* Summary metrics */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs text-slate-500">Total inscritos</p>
+              <p className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums mt-1">
+                {users.length}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs text-slate-500">Cuentas activas</p>
+              <p className="text-2xl font-extrabold text-emerald-700 dark:text-emerald-400 tabular-nums mt-1">
+                {activeUsersCount}
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4">
+              <p className="text-xs text-slate-500">Cuentas suspendidas</p>
+              <p className="text-2xl font-extrabold text-rose-700 dark:text-rose-400 tabular-nums mt-1">
+                {suspendedUsersCount}
+              </p>
+            </div>
+          </div>
+
+          {/* Search & Status Filter */}
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            <div className="relative flex-1">
+              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-3" />
+              <input
+                type="text"
+                value={userSearch}
+                onChange={(e) => setUserSearch(e.target.value)}
+                placeholder="Buscar por nombre, correo, comuna, región o teléfono..."
+                className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-950 pl-10 pr-4 py-2 text-xs sm:text-sm"
+              />
+            </div>
+            <div className="flex items-center gap-1 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 shrink-0">
+              {[
+                {id: 'all' as const, label: `Todos (${users.length})`},
+                {id: 'active' as const, label: `Activos (${activeUsersCount})`},
+                {id: 'suspended' as const, label: `Suspendidos (${suspendedUsersCount})`},
+              ].map((opt) => (
+                <button
+                  key={opt.id}
+                  type="button"
+                  onClick={() => setUserStatusFilter(opt.id)}
+                  className={`px-3 py-1.5 rounded-lg text-xs font-semibold whitespace-nowrap shrink-0 min-h-[36px] ${
+                    userStatusFilter === opt.id
+                      ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-sm'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Registered Users Table */}
+          <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden">
+            {filteredUsers.length === 0 ? (
+              <div className="p-8 text-center space-y-3">
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                  {users.length === 0
+                    ? 'Aún no hay usuarios inscritos registrados en la plataforma.'
+                    : 'No se encontraron usuarios con los filtros aplicados.'}
+                </p>
+                {(userSearch || userStatusFilter !== 'all') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setUserSearch('');
+                      setUserStatusFilter('all');
+                    }}
+                    className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[36px] whitespace-nowrap"
+                  >
+                    Limpiar filtros
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead>
+                    <tr className="border-b border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 bg-slate-50/70 dark:bg-slate-950/60">
+                      <th className="py-3 px-4 font-semibold">Usuario y correo</th>
+                      <th className="py-3 px-4 font-semibold">Ubicación</th>
+                      <th className="py-3 px-4 font-semibold">Roles y módulos</th>
+                      <th className="py-3 px-4 font-semibold">Registro</th>
+                      <th className="py-3 px-4 font-semibold">Estado</th>
+                      <th className="py-3 px-4 font-semibold text-right">Acción</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                    {filteredUsers.map((u) => {
+                      const isPrimaryAdmin =
+                        u.email.toLowerCase() === ADMIN_BOOTSTRAP_EMAIL.toLowerCase();
+                      const isExempt = isPaymentExemptEmail(u.email);
+                      return (
+                        <tr
+                          key={u.uid}
+                          className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40 transition-colors"
+                        >
+                          <td className="py-3 px-4 align-top">
+                            <p className="font-bold text-slate-900 dark:text-white">{u.displayName}</p>
+                            <p className="text-slate-600 dark:text-slate-300 font-mono">{u.email}</p>
+                            {u.phone && (
+                              <p className="text-slate-500 font-mono tabular-nums mt-0.5">{u.phone}</p>
+                            )}
+                            {isExempt && (
+                              <p className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 mt-0.5">
+                                Libre de pago
+                              </p>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 align-top text-slate-700 dark:text-slate-300">
+                            <p className="font-medium">{u.commune || 'Sin comuna'}</p>
+                            <p className="text-slate-500">{u.region || 'Sin región'}</p>
+                          </td>
+                          <td className="py-3 px-4 align-top text-slate-600 dark:text-slate-300">
+                            <p className="font-medium text-slate-800 dark:text-slate-200">
+                              {u.roles.map((r) => ROLE_LABELS[r] || r).join(' · ')}
+                            </p>
+                            <p className="text-slate-500 mt-0.5">
+                              {u.activeModules.length > 0
+                                ? u.activeModules.map((m) => MODULE_LABELS[m] || m).join(' · ')
+                                : 'Sin módulos'}
+                            </p>
+                          </td>
+                          <td className="py-3 px-4 align-top font-mono tabular-nums text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                            {formatRegistrationDate(u.createdAt)}
+                          </td>
+                          <td className="py-3 px-4 align-top whitespace-nowrap">
+                            <span
+                              className={`font-semibold ${
+                                u.status === 'active'
+                                  ? 'text-emerald-700 dark:text-emerald-400'
+                                  : u.status === 'suspended'
+                                    ? 'text-rose-700 dark:text-rose-400'
+                                    : 'text-slate-500'
+                              }`}
+                            >
+                              {u.status === 'active'
+                                ? 'Activo'
+                                : u.status === 'suspended'
+                                  ? 'Suspendido'
+                                  : 'Eliminado'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 align-top text-right whitespace-nowrap">
+                            {isPrimaryAdmin ? (
+                              <span className="text-[11px] font-semibold text-blue-700 dark:text-blue-400">
+                                Admin principal
+                              </span>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => void handleToggleUserStatus(u)}
+                                className={`px-3 py-1.5 rounded-xl border text-xs font-semibold min-h-[36px] whitespace-nowrap ${
+                                  u.status === 'active'
+                                    ? 'border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30'
+                                    : 'border-emerald-200 dark:border-emerald-900/60 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30'
+                                }`}
+                              >
+                                {u.status === 'active' ? 'Suspender' : 'Reactivar'}
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             )}
           </div>

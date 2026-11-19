@@ -49,7 +49,7 @@ export const HelpLegalPage: React.FC = () => {
         <div className="flex items-center gap-2">
           <Scale className="w-5 h-5 text-emerald-700 dark:text-emerald-400" />
           <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-            Documentación Legal Base (Borrador para Revisión Profesional)
+            Documentación Legal Base
           </h2>
         </div>
 

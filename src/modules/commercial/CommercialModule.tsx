@@ -22,12 +22,14 @@ import {
   LayoutGrid,
   Layers,
   List,
+  Package,
   Pause,
   Play,
   Plus,
   Search,
   ShoppingBag,
   Sparkles,
+  Store,
   Trash2,
   X,
 } from 'lucide-react';
@@ -52,17 +54,20 @@ import {
   BusinessProfile,
   CommercialProduct,
   MatchRecord,
+  MicroStore,
   PurchaseRequest,
 } from '../../types';
 import {SwipeCardDeck, SwipeDeckItem} from '../../components/SwipeCardDeck';
 import {AdBannerCard} from '../../components/AdBannerCard';
 import {SafeImage} from '../../components/SafeImage';
+import {MicroStoreSection} from './MicroStoreSection';
+import {sortByCreatedDesc} from '../../utils/sortNewest';
 
 interface CommercialModuleProps {
   onMatchCreated: (match: MatchRecord) => void;
   onOpenChat: (conversationId: string) => void;
   rotationConfig: AdRotationConfig;
-  initialTab?: 'explore_offers' | 'my_publications';
+  initialTab?: 'explore_offers' | 'my_publications' | 'microstores' | 'my_store';
 }
 
 interface RawInteraction {
@@ -82,13 +87,33 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
   const {firebaseUser, userAccount} = useAuth();
   const {showToast} = useToast();
 
-  const [tab, setTab] = useState<'explore_offers' | 'explore_needs' | 'publish_offer' | 'publish_need' | 'my_publications' | 'seller_profile' | 'incoming_interest'>(initialTab || 'explore_offers');
+  const [tab, setTab] = useState<
+    | 'explore_offers'
+    | 'explore_needs'
+    | 'publish_offer'
+    | 'publish_need'
+    | 'my_publications'
+    | 'seller_profile'
+    | 'incoming_interest'
+    | 'microstores'
+    | 'my_store'
+  >(initialTab || 'explore_offers');
   const [viewMode, setViewMode] = useState<'tinder' | 'results' | 'categories'>('tinder');
   const [includeDemo, setIncludeDemo] = useState(true);
+  const [microStoreSubMode, setMicroStoreSubMode] = useState<'directory' | 'my_store' | 'my_orders'>(
+    initialTab === 'my_store' ? 'my_store' : 'directory'
+  );
+  const [selectedStoreSellerId, setSelectedStoreSellerId] = useState<string | null>(null);
+  const [upgradeTrigger, setUpgradeTrigger] = useState(0);
 
   useEffect(() => {
     if (initialTab) {
       setTab(initialTab);
+      if (initialTab === 'my_store') {
+        setMicroStoreSubMode('my_store');
+      } else if (initialTab === 'microstores') {
+        setMicroStoreSubMode('directory');
+      }
     }
   }, [initialTab]);
 
@@ -97,6 +122,8 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
   const [myProducts, setMyProducts] = useState<CommercialProduct[]>([]);
   const [myRequests, setMyRequests] = useState<PurchaseRequest[]>([]);
+  const [microStores, setMicroStores] = useState<MicroStore[]>([]);
+  const [myStore, setMyStore] = useState<MicroStore | null>(null);
   const [myInteractions, setMyInteractions] = useState<RawInteraction[]>([]);
   const [receivedInteractions, setReceivedInteractions] = useState<RawInteraction[]>([]);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
@@ -160,7 +187,11 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     const unsubProd = onSnapshot(
       query(collection(db, 'products'), where('status', '==', 'active')),
       (snap) => {
-        setProducts(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<CommercialProduct, 'id'>)})));
+        setProducts(
+          sortByCreatedDesc(
+            snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<CommercialProduct, 'id'>)}))
+          )
+        );
       },
       (err) => handleFirestoreError(err, OperationType.LIST, 'products')
     );
@@ -168,9 +199,25 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     const unsubReq = onSnapshot(
       query(collection(db, 'purchaseRequests'), where('status', '==', 'open')),
       (snap) => {
-        setRequests(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<PurchaseRequest, 'id'>)})));
+        setRequests(
+          sortByCreatedDesc(
+            snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<PurchaseRequest, 'id'>)}))
+          )
+        );
       },
       (err) => handleFirestoreError(err, OperationType.LIST, 'purchaseRequests')
+    );
+
+    const unsubStores = onSnapshot(
+      query(collection(db, 'microStores'), where('status', '==', 'active')),
+      (snap) => {
+        setMicroStores(
+          sortByCreatedDesc(
+            snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<MicroStore, 'id'>)}))
+          )
+        );
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, 'microStores')
     );
 
     const unsubAds = onSnapshot(
@@ -184,12 +231,16 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     return () => {
       unsubProd();
       unsubReq();
+      unsubStores();
       unsubAds();
     };
   }, []);
 
   useEffect(() => {
-    if (!firebaseUser) return;
+    if (!firebaseUser) {
+      setMyStore(null);
+      return;
+    }
     const unsubOut = onSnapshot(
       query(collection(db, 'commercialInteractions'), where('fromUid', '==', firebaseUser.uid)),
       (snap) => {
@@ -229,7 +280,11 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     const unsubMyProds = onSnapshot(
       query(collection(db, 'products'), where('ownerId', '==', firebaseUser.uid)),
       (snap) => {
-        setMyProducts(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<CommercialProduct, 'id'>)})));
+        setMyProducts(
+          sortByCreatedDesc(
+            snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<CommercialProduct, 'id'>)}))
+          )
+        );
       },
       (err) => handleFirestoreError(err, OperationType.LIST, 'products')
     );
@@ -237,9 +292,26 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     const unsubMyReqs = onSnapshot(
       query(collection(db, 'purchaseRequests'), where('ownerId', '==', firebaseUser.uid)),
       (snap) => {
-        setMyRequests(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<PurchaseRequest, 'id'>)})));
+        setMyRequests(
+          sortByCreatedDesc(
+            snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<PurchaseRequest, 'id'>)}))
+          )
+        );
       },
       (err) => handleFirestoreError(err, OperationType.LIST, 'purchaseRequests')
+    );
+
+    const storeRef = doc(db, 'microStores', `store_${firebaseUser.uid}`);
+    const unsubMyStore = onSnapshot(
+      storeRef,
+      (snap) => {
+        if (snap.exists()) {
+          setMyStore({id: snap.id, ...(snap.data() as Omit<MicroStore, 'id'>)});
+        } else {
+          setMyStore(null);
+        }
+      },
+      (err) => handleFirestoreError(err, OperationType.GET, `microStores/store_${firebaseUser.uid}`)
     );
 
     return () => {
@@ -248,6 +320,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       unsubBiz();
       unsubMyProds();
       unsubMyReqs();
+      unsubMyStore();
     };
   }, [firebaseUser]);
 
@@ -300,14 +373,19 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     });
   }, [allRequests, filterCategory, filterCommune, searchQuery]);
 
+  const freeLimit = myStore?.freeLimit ?? 3;
+  const extraQuota = myStore?.extraQuota ?? 0;
+  const maxProductsLimit = freeLimit + extraQuota;
+  const isAtProductQuota = myProducts.length >= maxProductsLimit;
+
   const deckItems: SwipeDeckItem[] = useMemo(() => {
     if (tab === 'explore_needs') {
       return filteredRequests
-        .filter((r) => !interactedTargetIds.has(r.id) && r.ownerId !== firebaseUser?.uid)
+        .filter((r) => !interactedTargetIds.has(r.id))
         .map((r) => ({
           id: r.id,
           title: r.title,
-          subtitle: `Solicitud de compra · ${r.buyerName}`,
+          subtitle: `Solicitud de compra · ${r.buyerName}${r.ownerId === firebaseUser?.uid ? ' · Tu publicación' : ''}`,
           priceOrScoreLabel: `${formatCLP(r.minBudgetCLP)} - ${formatCLP(r.maxBudgetCLP)}`,
           description: r.description,
           locationLabel: `${r.commune}, ${r.region}`,
@@ -317,11 +395,11 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
         }));
     }
     return filteredProducts
-      .filter((p) => !interactedTargetIds.has(p.id) && p.ownerId !== firebaseUser?.uid)
+      .filter((p) => !interactedTargetIds.has(p.id))
       .map((p) => ({
         id: p.id,
         title: p.title,
-        subtitle: `${p.itemType === 'service' ? 'Servicio' : 'Producto'} · ${p.sellerName}`,
+        subtitle: `${p.itemType === 'service' ? 'Servicio' : 'Producto'} · ${p.sellerName}${p.ownerId === firebaseUser?.uid ? ' · Tu publicación' : ''}`,
         priceOrScoreLabel: formatCLP(p.priceCLP),
         description: p.description,
         locationLabel: `${p.commune}${p.distanceKm ? ` (~${p.distanceKm} km)` : ''}`,
@@ -440,6 +518,28 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       : allProducts.find((p) => p.id === item.id);
     if (!rawTarget) return;
 
+    if (rawTarget.ownerId === firebaseUser.uid) {
+      if (action === 'pass') {
+        setMyInteractions((prev) => [
+          ...prev,
+          {
+            id: `local_own_${item.id}`,
+            fromUid: firebaseUser.uid,
+            toUid: rawTarget.ownerId,
+            targetId: item.id,
+            targetKind: isNeed ? 'purchaseRequest' : 'product',
+            action,
+          },
+        ]);
+        return;
+      }
+      showToast(
+        'Esta es tu propia publicación. Ya está activa y visible para todos los usuarios y en tu Microtienda.',
+        'info'
+      );
+      return;
+    }
+
     if (item.isDemo) {
       if (action === 'like') {
         showToast(
@@ -523,7 +623,45 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       showToast('Debes iniciar sesión para publicar.', 'error');
       return;
     }
+    if (myProducts.length >= maxProductsLimit) {
+      showToast(
+        `Tu Microtienda alcanzó su capacidad de ${maxProductsLimit} productos (${myProducts.length}/${maxProductsLimit}). Amplía +5 productos por $9.990/mes.`,
+        'error'
+      );
+      setTab('my_store');
+      setMicroStoreSubMode('my_store');
+      setUpgradeTrigger((n) => n + 1);
+      return;
+    }
     try {
+      if (!myStore) {
+        const storeId = `store_${firebaseUser.uid}`;
+        await setDoc(doc(db, 'microStores', storeId), {
+          ownerId: firebaseUser.uid,
+          storeName: myBusiness?.commercialName || `Microtienda ${userAccount?.displayName || 'Local'}`,
+          description:
+            myBusiness?.description ||
+            `Catálogo de productos y servicios en ${prodCommune}, ${prodRegion}.`,
+          category: prodCategory,
+          commune: prodCommune,
+          region: prodRegion,
+          deliveryOptions: prodDelivery
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+            .slice(0, 6),
+          acceptedPaymentMethods: ['Transferencia bancaria', 'Efectivo al entregar'],
+          freeLimit: 3,
+          extraQuota: 0,
+          maxProductsLimit: 3,
+          planPacksCount: 0,
+          lastFlowToken: '',
+          status: 'active',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
       await addDoc(collection(db, 'products'), {
         ownerId: firebaseUser.uid,
         businessId: myBusiness?.id || '',
@@ -532,7 +670,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
         description: prodDesc.trim(),
         category: prodCategory,
         priceCLP: Number(prodPrice) || 0,
-        sellerName: myBusiness?.commercialName || userAccount?.displayName || 'Vendedor local',
+        sellerName: myStore?.storeName || myBusiness?.commercialName || userAccount?.displayName || 'Vendedor local',
         commune: prodCommune,
         region: prodRegion,
         imageUrl: prodImageUrl.trim(),
@@ -543,7 +681,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      showToast('Publicación comercial creada y activa en el catálogo.', 'success');
+      showToast('Publicación creada, activa y visible en el catálogo y en tu Microtienda.', 'success');
       setProdTitle('');
       setProdDesc('');
       setProdPrice('');
@@ -754,6 +892,12 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       <div className="flex flex-wrap items-center gap-2">
         {[
           {id: 'explore_offers' as const, label: 'Explorar Ofertas', icon: <ShoppingBag className="w-4 h-4" />},
+          {id: 'microstores' as const, label: 'Microtiendas', icon: <Store className="w-4 h-4" />},
+          {
+            id: 'my_store' as const,
+            label: `Mi Microtienda (${myProducts.length}/${maxProductsLimit})`,
+            icon: <Package className="w-4 h-4" />,
+          },
           {id: 'explore_needs' as const, label: 'Solicitudes de Compra', icon: <Sparkles className="w-4 h-4" />},
           {id: 'publish_offer' as const, label: 'Publicar Producto/Servicio', icon: <Plus className="w-4 h-4" />},
           {id: 'publish_need' as const, label: 'Publicar Necesidad', icon: <Plus className="w-4 h-4" />},
@@ -772,7 +916,16 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           <button
             key={t.id}
             type="button"
-            onClick={() => setTab(t.id)}
+            onClick={() => {
+              setTab(t.id);
+              if (t.id === 'microstores') {
+                setSelectedStoreSellerId(null);
+                setMicroStoreSubMode('directory');
+              } else if (t.id === 'my_store') {
+                setSelectedStoreSellerId(null);
+                setMicroStoreSubMode('my_store');
+              }
+            }}
             className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap min-h-[40px] ${
               tab === t.id
                 ? 'bg-blue-700 text-white'
@@ -784,6 +937,32 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           </button>
         ))}
       </div>
+
+      {/* Microtiendas & Mi Microtienda */}
+      {(tab === 'microstores' || tab === 'my_store') && (
+        <MicroStoreSection
+          products={products}
+          myProducts={myProducts}
+          myStore={myStore}
+          allStores={microStores}
+          selectedSellerId={selectedStoreSellerId}
+          onSelectSellerId={setSelectedStoreSellerId}
+          subMode={microStoreSubMode}
+          onChangeSubMode={(mode) => {
+            setMicroStoreSubMode(mode);
+            if (mode === 'my_store') {
+              setTab('my_store');
+            } else {
+              setTab('microstores');
+            }
+          }}
+          onRequestPublishProduct={() => setTab('publish_offer')}
+          onToggleProductStatus={handleToggleProductStatus}
+          onDeleteProduct={handleDeleteProduct}
+          includeDemo={includeDemo}
+          openUpgradeTrigger={upgradeTrigger}
+        />
+      )}
 
       {/* Explore Offers or Needs */}
       {(tab === 'explore_offers' || tab === 'explore_needs') && (
@@ -977,15 +1156,31 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                           : `${formatCLP(entry.minBudgetCLP)} - ${formatCLP(entry.maxBudgetCLP)}`}
                       </p>
                     </div>
-                    <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setDetailItem(entry)}
-                        className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
-                      >
-                        <Eye className="w-3.5 h-3.5" />
-                        <span>Detalles</span>
-                      </button>
+                    <div className="px-5 py-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => setDetailItem(entry)}
+                          className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:text-slate-900"
+                        >
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Detalles</span>
+                        </button>
+                        {isProd && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedStoreSellerId(entry.ownerId);
+                              setMicroStoreSubMode('directory');
+                              setTab('microstores');
+                            }}
+                            className="inline-flex items-center gap-1 text-xs font-semibold text-blue-700 dark:text-blue-400 hover:underline whitespace-nowrap"
+                          >
+                            <Store className="w-3.5 h-3.5" />
+                            <span>Ver tienda</span>
+                          </button>
+                        )}
+                      </div>
                       <button
                         type="button"
                         onClick={() =>
@@ -1002,7 +1197,7 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                             'like'
                           )
                         }
-                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold min-h-[36px]"
+                        className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold min-h-[36px] whitespace-nowrap"
                       >
                         Me interesa
                       </button>
@@ -1071,7 +1266,37 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           onSubmit={handleCreateProduct}
           className="max-w-2xl rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4"
         >
-          <h2 className="text-lg font-bold text-slate-900 dark:text-white">Publicar producto o servicio</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="text-lg font-bold text-slate-900 dark:text-white">Publicar producto o servicio</h2>
+            <span className="text-xs font-mono tabular-nums font-semibold text-blue-700 dark:text-blue-400">
+              Cupo Microtienda: {myProducts.length} / {maxProductsLimit}
+            </span>
+          </div>
+          {isAtProductQuota ? (
+            <div className="rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/70 dark:bg-amber-950/30 p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
+                <p className="font-bold">Alcanzaste los {maxProductsLimit} productos de tu Microtienda.</p>
+                <p>
+                  Cada Microtienda incluye hasta 3 productos gratis. Amplía +5 nuevos productos por $9.990 CLP mensuales.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setTab('my_store');
+                  setMicroStoreSubMode('my_store');
+                  setUpgradeTrigger((n) => n + 1);
+                }}
+                className="px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold min-h-[40px] whitespace-nowrap shrink-0"
+              >
+                Ampliar +5 productos ($9.990/mes)
+              </button>
+            </div>
+          ) : (
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Tu publicación quedará activa de inmediato, visible para todos en MATCH COMERCIAL y dentro del catálogo de tu Microtienda.
+            </p>
+          )}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-xs font-semibold">Tipo</label>
@@ -1633,23 +1858,40 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                 </button>
               </div>
               <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">{detailItem.description}</p>
-              <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
                 <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
                   {'priceCLP' in detailItem
                     ? formatCLP(detailItem.priceCLP)
                     : `${formatCLP(detailItem.minBudgetCLP)} - ${formatCLP(detailItem.maxBudgetCLP)}`}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setReportTarget({id: detailItem.id, type: 'product', title: detailItem.title});
-                    setDetailItem(null);
-                  }}
-                  className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:underline"
-                >
-                  <Flag className="w-3.5 h-3.5" />
-                  <span>Denunciar</span>
-                </button>
+                <div className="flex items-center gap-3">
+                  {'priceCLP' in detailItem && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedStoreSellerId(detailItem.ownerId);
+                        setMicroStoreSubMode('directory');
+                        setTab('microstores');
+                        setDetailItem(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold min-h-[36px] whitespace-nowrap"
+                    >
+                      <Store className="w-3.5 h-3.5" />
+                      <span>Visitar Microtienda</span>
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setReportTarget({id: detailItem.id, type: 'product', title: detailItem.title});
+                      setDetailItem(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 text-xs text-rose-600 hover:underline"
+                  >
+                    <Flag className="w-3.5 h-3.5" />
+                    <span>Denunciar</span>
+                  </button>
+                </div>
               </div>
             </div>
           </div>

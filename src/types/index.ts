@@ -397,7 +397,7 @@ export interface AdOrder {
   ownerId: string;
   campaignId?: string;
   engine: AppModule;
-  orderType: 'ad_campaign' | 'seller_subscription' | 'company_subscription' | 'featured_post';
+  orderType: 'ad_campaign' | 'seller_subscription' | 'company_subscription' | 'featured_post' | 'microstore_quota';
   description: string;
   commerceOrder: string;
   amountCLP: number;
@@ -445,4 +445,73 @@ export interface AuditLogEntry {
   targetId: string;
   summary: string;
   createdAt?: unknown;
+}
+
+export interface MicroStore {
+  id: string;
+  ownerId: string;
+  storeName: string;
+  description: string;
+  category: string;
+  commune: string;
+  region: string;
+  logoUrl?: string;
+  deliveryOptions: string[];
+  acceptedPaymentMethods: string[];
+  freeLimit: number;
+  extraQuota: number;
+  maxProductsLimit: number;
+  planPacksCount: number;
+  lastFlowToken: string;
+  status: 'active' | 'paused';
+  isDemo?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
+}
+
+export interface StoreCartItem {
+  productId: string;
+  title: string;
+  priceCLP: number;
+  quantity: number;
+  imageUrl: string;
+}
+
+export type StoreDeliveryType =
+  | 'por_coordinar'
+  | 'retiro_tienda'
+  | 'despacho_domicilio'
+  | 'envio_encomienda';
+
+export type StorePaymentMethod =
+  | 'por_coordinar'
+  | 'transferencia'
+  | 'efectivo'
+  | 'link_flow'
+  | 'otro';
+
+export type StoreOrderStatus =
+  | 'pending_coordination'
+  | 'coordinated'
+  | 'completed'
+  | 'cancelled';
+
+export interface StoreOrder {
+  id: string;
+  storeId: string;
+  sellerId: string;
+  sellerName: string;
+  buyerId: string;
+  buyerName: string;
+  buyerCommune: string;
+  items: StoreCartItem[];
+  totalCLP: number;
+  buyerNote: string;
+  deliveryType: StoreDeliveryType;
+  deliveryDetails: string;
+  paymentMethod: StorePaymentMethod;
+  paymentDetails: string;
+  status: StoreOrderStatus;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }

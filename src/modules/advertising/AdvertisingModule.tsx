@@ -26,6 +26,7 @@ import {DEFAULT_AD_PACKAGES, DEMO_ADS, formatCLP} from '../../services/config/ch
 import {AdCampaign, AdOrder, AdPackage, AdvertiserAccount} from '../../types';
 import {CreateAdWizard} from './CreateAdWizard';
 import {SafeImage} from '../../components/SafeImage';
+import {sortByCreatedDesc} from '../../utils/sortNewest';
 
 interface AdvertisingModuleProps {
   discountPercent: number;
@@ -62,7 +63,10 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
 
     const unsubPublicAds = onSnapshot(
       query(collection(db, 'adCampaigns'), where('moderationStatus', '==', 'active')),
-      (snap) => setActiveAds(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdCampaign, 'id'>)}))),
+      (snap) =>
+        setActiveAds(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdCampaign, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'adCampaigns')
     );
 
@@ -76,13 +80,19 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
     if (!firebaseUser) return;
     const unsubMine = onSnapshot(
       query(collection(db, 'adCampaigns'), where('ownerId', '==', firebaseUser.uid)),
-      (snap) => setMyCampaigns(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdCampaign, 'id'>)}))),
+      (snap) =>
+        setMyCampaigns(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdCampaign, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'adCampaigns')
     );
 
     const unsubOrders = onSnapshot(
       query(collection(db, 'adOrders'), where('ownerId', '==', firebaseUser.uid)),
-      (snap) => setMyOrders(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdOrder, 'id'>)}))),
+      (snap) =>
+        setMyOrders(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<AdOrder, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'adOrders')
     );
 

@@ -54,6 +54,7 @@ import {
 } from '../../types';
 import {SwipeCardDeck, SwipeDeckItem} from '../../components/SwipeCardDeck';
 import {AdBannerCard} from '../../components/AdBannerCard';
+import {sortByCreatedDesc} from '../../utils/sortNewest';
 
 interface EmploymentModuleProps {
   onMatchCreated: (match: MatchRecord) => void;
@@ -168,12 +169,18 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
   useEffect(() => {
     const unsubVac = onSnapshot(
       query(collection(db, 'jobVacancies'), where('status', '==', 'active')),
-      (snap) => setVacancies(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<JobVacancy, 'id'>)}))),
+      (snap) =>
+        setVacancies(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<JobVacancy, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'jobVacancies')
     );
     const unsubWorkers = onSnapshot(
       query(collection(db, 'workerProfiles'), where('status', '==', 'active')),
-      (snap) => setWorkers(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<WorkerProfile, 'id'>)}))),
+      (snap) =>
+        setWorkers(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<WorkerProfile, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'workerProfiles')
     );
     const unsubAds = onSnapshot(
@@ -264,7 +271,10 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
 
     const unsubMyVacs = onSnapshot(
       query(collection(db, 'jobVacancies'), where('ownerId', '==', firebaseUser.uid)),
-      (snap) => setMyVacancies(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<JobVacancy, 'id'>)}))),
+      (snap) =>
+        setMyVacancies(
+          sortByCreatedDesc(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<JobVacancy, 'id'>)})))
+        ),
       (err) => handleFirestoreError(err, OperationType.LIST, 'jobVacancies')
     );
 
@@ -343,11 +353,11 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
   const deckItems: SwipeDeckItem[] = useMemo(() => {
     if (tab === 'explore_workers') {
       return allWorkers
-        .filter((w) => !interactedIds.has(w.id) && w.ownerId !== firebaseUser?.uid)
+        .filter((w) => !interactedIds.has(w.id))
         .map((w) => ({
           id: w.id,
           title: w.displayName,
-          subtitle: `${w.profession} · ${w.experienceYears} años exp.`,
+          subtitle: `${w.profession} · ${w.experienceYears} años exp.${w.ownerId === firebaseUser?.uid ? ' · Tu perfil' : ''}`,
           priceOrScoreLabel: w.showSalaryExpectation ? formatCLP(w.salaryExpectationCLP) : 'Renta reservada',
           description: w.headline + (w.experienceSummary ? ` — ${w.experienceSummary}` : ''),
           locationLabel: `${w.commune} · ${w.modality}`,
@@ -357,11 +367,11 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
     }
 
     return filteredVacancies
-      .filter(({vacancy}) => !interactedIds.has(vacancy.id) && vacancy.ownerId !== firebaseUser?.uid)
+      .filter(({vacancy}) => !interactedIds.has(vacancy.id))
       .map(({vacancy, compatibility}) => ({
         id: vacancy.id,
         title: vacancy.title,
-        subtitle: `${vacancy.companyName} · ${vacancy.contractType.replace('_', ' ')}`,
+        subtitle: `${vacancy.companyName} · ${vacancy.contractType.replace('_', ' ')}${vacancy.ownerId === firebaseUser?.uid ? ' · Tu publicación' : ''}`,
         priceOrScoreLabel: `${compatibility.score}% compatible`,
         description: `${compatibility.explanation} ${vacancy.description}`,
         locationLabel: `${vacancy.commune} · ${vacancy.modality}`,
@@ -479,6 +489,25 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
       ? allWorkers.find((w) => w.id === item.id)
       : allVacancies.find((v) => v.id === item.id);
     if (!target) return;
+
+    if (target.ownerId === firebaseUser.uid) {
+      if (action === 'pass') {
+        setMyInteractions((prev) => [
+          ...prev,
+          {
+            id: `local_own_${item.id}`,
+            fromUid: firebaseUser.uid,
+            toUid: target.ownerId,
+            targetId: item.id,
+            targetKind: isWorkerExplore ? 'worker' : 'vacancy',
+            action,
+          },
+        ]);
+        return;
+      }
+      showToast('Esta es tu propia publicación. Ya está activa y visible para todos los usuarios.', 'info');
+      return;
+    }
 
     if (item.isDemo) {
       if (action === 'like') {
@@ -676,7 +705,7 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
-      showToast('Vacante laboral publicada.', 'success');
+      showToast('Vacante laboral publicada, activa y visible de inmediato para todos.', 'success');
       setJTitle('');
       setJDesc('');
       setTab('explore_jobs');

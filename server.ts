@@ -22,6 +22,7 @@ const SERVER_PACKAGE_CATALOG: Record<string, {name: string; priceCLP: number; du
   pkg_temp_3: {name: 'CAMPAÑA TEMPORAL 3 DÍAS', priceCLP: 2990, durationDays: 3},
   pkg_temp_7: {name: 'CAMPAÑA TEMPORAL 7 DÍAS', priceCLP: 5990, durationDays: 7},
   pkg_temp_15: {name: 'CAMPAÑA TEMPORAL 15 DÍAS', priceCLP: 9990, durationDays: 15},
+  pkg_microstore_5: {name: 'MICROTIENDA +5 PRODUCTOS (MENSUAL)', priceCLP: 9990, durationDays: 30},
 };
 
 const PAYMENT_EXEMPT_EMAILS = new Set([
@@ -37,7 +38,7 @@ function isPaymentExemptEmail(email?: string): boolean {
 }
 
 // Idempotency & webhook verification audit store in memory for runtime protection
-const processedFlowTokens = new Map<string, {status: number; commerceOrder: string; verifiedAt: string}>();
+const processedFlowTokens = new Map<string, {status: number; commerceOrder: string; flowOrder?: number; verifiedAt: string}>();
 const adEventRateMap = new Map<string, number>();
 
 function getFlowConfig() {
@@ -198,6 +199,7 @@ async function startServer() {
       processedFlowTokens.set(token, {
         status: statusData.status,
         commerceOrder: statusData.commerceOrder || '',
+        flowOrder: statusData.flowOrder,
         verifiedAt: new Date().toISOString(),
       });
 
@@ -229,7 +231,12 @@ async function startServer() {
       const s = signFlowParams(params, cfg.secretKey);
       const url = `${cfg.baseUrl}/payment/getStatus?apiKey=${encodeURIComponent(cfg.apiKey)}&token=${encodeURIComponent(token)}&s=${encodeURIComponent(s)}`;
       const statusRes = await fetch(url);
-      const statusData = (await statusRes.json()) as {status?: number; commerceOrder?: string; amount?: number};
+      const statusData = (await statusRes.json()) as {
+        status?: number;
+        commerceOrder?: string;
+        amount?: number;
+        flowOrder?: number;
+      };
       if (!statusRes.ok) {
         return res.status(502).json({error: 'Error verificando transacción en Flow.'});
       }
@@ -237,6 +244,7 @@ async function startServer() {
         processedFlowTokens.set(token, {
           status: statusData.status,
           commerceOrder: statusData.commerceOrder || '',
+          flowOrder: statusData.flowOrder,
           verifiedAt: new Date().toISOString(),
         });
       }

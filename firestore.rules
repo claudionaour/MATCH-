@@ -321,6 +321,8 @@ service cloud.firestore {
         && data.keys().hasOnly(['ownerId', 'campaignId', 'engine', 'orderType', 'description', 'commerceOrder', 'amountCLP', 'currency', 'paymentMethod', 'flowToken', 'flowOrder', 'receiptNote', 'status', 'createdAt', 'updatedAt'])
         && isValidId(data.ownerId)
         && data.engine in ['commercial', 'employment', 'advertising']
+        && data.orderType in ['ad_campaign', 'seller_subscription', 'company_subscription', 'featured_post', 'microstore_quota']
+        && data.description is string && data.description.size() <= 300
         && data.commerceOrder is string && data.commerceOrder.size() <= 128
         && data.amountCLP is number && data.amountCLP >= 0
         && data.currency == 'CLP'
@@ -346,6 +348,48 @@ service cloud.firestore {
         && isValidId(data.actorUid)
         && data.action is string && data.action.size() <= 100
         && data.summary is string && data.summary.size() <= 500;
+    }
+
+    function isValidMicroStore(data) {
+      return data.keys().hasAll(['ownerId', 'storeName', 'description', 'category', 'commune', 'region', 'deliveryOptions', 'acceptedPaymentMethods', 'freeLimit', 'extraQuota', 'maxProductsLimit', 'planPacksCount', 'lastFlowToken', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['ownerId', 'storeName', 'description', 'category', 'commune', 'region', 'logoUrl', 'deliveryOptions', 'acceptedPaymentMethods', 'freeLimit', 'extraQuota', 'maxProductsLimit', 'planPacksCount', 'lastFlowToken', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.ownerId)
+        && data.storeName is string && data.storeName.size() >= 2 && data.storeName.size() <= 140
+        && data.description is string && data.description.size() <= 1500
+        && data.category is string && data.category.size() <= 80
+        && data.commune is string && data.commune.size() <= 80
+        && data.region is string && data.region.size() <= 80
+        && (!('logoUrl' in data) || (data.logoUrl is string && data.logoUrl.size() <= 1000))
+        && data.deliveryOptions is list && data.deliveryOptions.size() <= 6
+        && (data.deliveryOptions.size() == 0 || data.deliveryOptions[0] is string)
+        && data.acceptedPaymentMethods is list && data.acceptedPaymentMethods.size() <= 6
+        && (data.acceptedPaymentMethods.size() == 0 || data.acceptedPaymentMethods[0] is string)
+        && data.freeLimit is number && data.freeLimit == 3
+        && data.extraQuota is number && data.extraQuota >= 0 && data.extraQuota <= 500
+        && data.maxProductsLimit is number && data.maxProductsLimit == data.freeLimit + data.extraQuota
+        && data.planPacksCount is number && data.planPacksCount >= 0 && data.planPacksCount <= 100
+        && data.lastFlowToken is string && data.lastFlowToken.size() <= 200
+        && data.status in ['active', 'paused'];
+    }
+
+    function isValidStoreOrder(data) {
+      return data.keys().hasAll(['storeId', 'sellerId', 'sellerName', 'buyerId', 'buyerName', 'buyerCommune', 'items', 'totalCLP', 'buyerNote', 'deliveryType', 'deliveryDetails', 'paymentMethod', 'paymentDetails', 'status', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['storeId', 'sellerId', 'sellerName', 'buyerId', 'buyerName', 'buyerCommune', 'items', 'totalCLP', 'buyerNote', 'deliveryType', 'deliveryDetails', 'paymentMethod', 'paymentDetails', 'status', 'createdAt', 'updatedAt'])
+        && isValidId(data.storeId)
+        && isValidId(data.sellerId)
+        && isValidId(data.buyerId)
+        && data.sellerName is string && data.sellerName.size() >= 1 && data.sellerName.size() <= 140
+        && data.buyerName is string && data.buyerName.size() >= 1 && data.buyerName.size() <= 120
+        && data.buyerCommune is string && data.buyerCommune.size() <= 80
+        && data.items is list && data.items.size() >= 1 && data.items.size() <= 20
+        && data.items[0] is map
+        && data.totalCLP is number && data.totalCLP >= 0 && data.totalCLP <= 999999999
+        && data.buyerNote is string && data.buyerNote.size() <= 500
+        && data.deliveryType in ['por_coordinar', 'retiro_tienda', 'despacho_domicilio', 'envio_encomienda']
+        && data.deliveryDetails is string && data.deliveryDetails.size() <= 500
+        && data.paymentMethod in ['por_coordinar', 'transferencia', 'efectivo', 'link_flow', 'otro']
+        && data.paymentDetails is string && data.paymentDetails.size() <= 500
+        && data.status in ['pending_coordination', 'coordinated', 'completed', 'cancelled'];
     }
 
     // ====================
@@ -749,6 +793,17 @@ service cloud.firestore {
             )
             && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'benefit', 'offerPriceText', 'ctaLabel', 'ctaActionType', 'ctaDestination', 'imageUrl', 'logoUrl', 'targetSections', 'targetCategories', 'targetScope', 'targetCommune', 'targetRegion', 'targetAudienceNote', 'moderationStatus', 'updatedAt'])
           )
+          || (
+            isOwner(existing().ownerId)
+            && existing().paymentStatus == 'pending_payment'
+            && existing().moderationStatus in ['draft', 'pending_review', 'approved']
+            && incoming().paymentStatus == 'confirmed'
+            && incoming().moderationStatus == 'active'
+            && incoming().impressionsCount == existing().impressionsCount
+            && incoming().clicksCount == existing().clicksCount
+            && incoming().contactsCount == existing().contactsCount
+            && incoming().diff(existing()).affectedKeys().hasOnly(['paymentStatus', 'moderationStatus', 'updatedAt'])
+          )
         );
       allow delete: if isValidId(campaignId) && isAdmin();
     }
@@ -792,7 +847,18 @@ service cloud.firestore {
         && incoming().ownerId == existing().ownerId
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && isAdmin();
+        && (
+          isAdmin()
+          || (
+            isOwner(existing().ownerId)
+            && existing().paymentMethod == 'flow'
+            && existing().status == 'pending'
+            && incoming().status == 'confirmed'
+            && incoming().amountCLP == existing().amountCLP
+            && incoming().flowToken is string && incoming().flowToken.size() >= 10 && incoming().flowToken.size() <= 200
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'flowToken', 'flowOrder', 'receiptNote', 'updatedAt'])
+          )
+        );
       allow delete: if isValidId(orderId) && isAdmin();
     }
 
@@ -825,6 +891,97 @@ service cloud.firestore {
       allow list: if isBootstrappedAdmin();
       allow create: if isValidId(logId) && isAdmin() && isValidAuditLog(incoming()) && incoming().createdAt == request.time;
       allow update, delete: if false;
+    }
+
+    match /microStores/{storeId} {
+      allow get: if isValidId(storeId) && (existing().status == 'active' || isOwner(existing().ownerId) || isAdmin());
+      allow list: if resource.data.status == 'active' || (isSignedIn() && resource.data.ownerId == request.auth.uid) || isBootstrappedAdmin();
+      allow create: if isValidId(storeId)
+        && isVerified()
+        && isValidMicroStore(incoming())
+        && incoming().ownerId == request.auth.uid
+        && incoming().freeLimit == 3
+        && incoming().extraQuota == 0
+        && incoming().maxProductsLimit == 3
+        && incoming().planPacksCount == 0
+        && incoming().lastFlowToken == ''
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(storeId)
+        && isVerified()
+        && isValidMicroStore(incoming())
+        && incoming().ownerId == existing().ownerId
+        && incoming().freeLimit == existing().freeLimit
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          isAdmin()
+          || (
+            isOwner(existing().ownerId)
+            && incoming().extraQuota == existing().extraQuota
+            && incoming().maxProductsLimit == existing().maxProductsLimit
+            && incoming().planPacksCount == existing().planPacksCount
+            && incoming().lastFlowToken == existing().lastFlowToken
+            && incoming().diff(existing()).affectedKeys().hasOnly(['storeName', 'description', 'category', 'commune', 'region', 'logoUrl', 'deliveryOptions', 'acceptedPaymentMethods', 'status', 'updatedAt'])
+          )
+          || (
+            isOwner(existing().ownerId)
+            && (
+              isPaymentExempt()
+              || (
+                incoming().lastFlowToken is string
+                && incoming().lastFlowToken.size() >= 10
+                && incoming().lastFlowToken != existing().lastFlowToken
+              )
+            )
+            && incoming().extraQuota == existing().extraQuota + 5
+            && incoming().maxProductsLimit == existing().freeLimit + incoming().extraQuota
+            && incoming().planPacksCount == existing().planPacksCount + 1
+            && incoming().diff(existing()).affectedKeys().hasOnly(['extraQuota', 'maxProductsLimit', 'planPacksCount', 'lastFlowToken', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(storeId) && (isOwner(existing().ownerId) || isAdmin());
+    }
+
+    match /storeOrders/{orderId} {
+      allow get: if isValidId(orderId) && isSignedIn() && (existing().buyerId == request.auth.uid || existing().sellerId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.buyerId == request.auth.uid || resource.data.sellerId == request.auth.uid || isBootstrappedAdmin());
+      allow create: if isValidId(orderId)
+        && isVerified()
+        && isValidStoreOrder(incoming())
+        && incoming().buyerId == request.auth.uid
+        && incoming().status == 'pending_coordination'
+        && incoming().deliveryType == 'por_coordinar'
+        && incoming().paymentMethod == 'por_coordinar'
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isValidId(orderId)
+        && isVerified()
+        && isValidStoreOrder(incoming())
+        && incoming().storeId == existing().storeId
+        && incoming().sellerId == existing().sellerId
+        && incoming().buyerId == existing().buyerId
+        && incoming().items == existing().items
+        && incoming().totalCLP == existing().totalCLP
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && existing().status != 'completed'
+        && existing().status != 'cancelled'
+        && (
+          isAdmin()
+          || (
+            isOwner(existing().sellerId)
+            && incoming().status in ['pending_coordination', 'coordinated', 'completed', 'cancelled']
+            && incoming().diff(existing()).affectedKeys().hasOnly(['deliveryType', 'deliveryDetails', 'paymentMethod', 'paymentDetails', 'status', 'updatedAt'])
+          )
+          || (
+            isOwner(existing().buyerId)
+            && existing().status == 'pending_coordination'
+            && incoming().status == 'cancelled'
+            && incoming().diff(existing()).affectedKeys().hasOnly(['status', 'updatedAt'])
+          )
+        );
+      allow delete: if isValidId(orderId) && isAdmin();
     }
   }
 }

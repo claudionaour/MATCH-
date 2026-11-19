@@ -8,8 +8,12 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
   query,
+  serverTimestamp,
+  setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import {Bell, HelpCircle, LogOut, Megaphone, Settings, ShieldCheck, User} from 'lucide-react';
@@ -24,16 +28,18 @@ import {MatchCelebrationModal} from './components/MatchCelebrationModal';
 import {Logo} from './components/Logo';
 import {TopBar} from './components/TopBar';
 import {PWAInstallButton} from './components/PWAInstallButton';
-import {DEFAULT_ROTATION_CONFIG} from './services/config/chileCatalog';
+import {DEFAULT_REGION, DEFAULT_ROTATION_CONFIG, normalizeRegionName} from './services/config/chileCatalog';
 import {db, handleFirestoreError, OperationType} from './services/firebase/firebaseClient';
 import {verifyFlowPaymentOnServer} from './services/payments/paymentService';
 import {
+  AdOrder,
   AdRotationConfig,
   AppModule,
   AppNotification,
   AppSection,
   Conversation,
   MatchRecord,
+  MicroStore,
 } from './types';
 import {LandingPage} from './pages/LandingPage';
 import {HomeDashboard} from './pages/HomeDashboard';
@@ -81,6 +87,15 @@ const AppShell: React.FC = () => {
   const [celebrationMatch, setCelebrationMatch] = useState<MatchRecord | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
   const [moduleSubView, setModuleSubView] = useState<string | undefined>(undefined);
+  const [pendingFlowToken, setPendingFlowToken] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const flowReturn = params.get('flowReturn');
+    const token = params.get('token');
+    if (flowReturn === '1' && token) {
+      return token;
+    }
+    return null;
+  });
 
   const handleSectionSelect = (section: AppSection, subView?: string) => {
     setModuleSubView(subView);
@@ -101,30 +116,106 @@ const AppShell: React.FC = () => {
       });
   }, []);
 
-  // Verify Flow payment return params if present in URL
+  // Verify Flow payment return params once user session is available
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const flowReturn = params.get('flowReturn');
-    const token = params.get('token');
-    if (flowReturn === '1' && token) {
-      verifyFlowPaymentOnServer(token)
-        .then((res) => {
-          if (res.verified && res.result?.status === 2) {
-            showToast(`Pago Flow verificado (${res.result.commerceOrder}).`, 'success');
-            setActiveSection('advertising');
-          } else {
-            showToast('Retorno de Flow recibido. Revisa el estado de tu orden en Mi Publicidad.', 'info');
+    if (!pendingFlowToken || !firebaseUser) return;
+    const token = pendingFlowToken;
+    setPendingFlowToken(null);
+    window.history.replaceState({}, document.title, window.location.pathname);
+
+    (async () => {
+      try {
+        const res = await verifyFlowPaymentOnServer(token);
+        if (res.verified && res.result?.status === 2) {
+          const commerceOrder = res.result.commerceOrder;
+          const ordersSnap = await getDocs(
+            query(
+              collection(db, 'adOrders'),
+              where('ownerId', '==', firebaseUser.uid),
+              where('commerceOrder', '==', commerceOrder)
+            )
+          );
+
+          if (!ordersSnap.empty) {
+            const orderDoc = ordersSnap.docs[0];
+            const orderData = orderDoc.data() as Omit<AdOrder, 'id'>;
+            if (orderData.status !== 'confirmed') {
+              await updateDoc(doc(db, 'adOrders', orderDoc.id), {
+                status: 'confirmed',
+                flowToken: token,
+                flowOrder: res.result.flowOrder || 0,
+                receiptNote: 'Pago Flow confirmado',
+                updatedAt: serverTimestamp(),
+              });
+            }
+
+            if (orderData.orderType === 'microstore_quota') {
+              const storeId = `store_${firebaseUser.uid}`;
+              const storeRef = doc(db, 'microStores', storeId);
+              let storeSnap = await getDoc(storeRef);
+              if (!storeSnap.exists()) {
+                await setDoc(storeRef, {
+                  ownerId: firebaseUser.uid,
+                  storeName: `Microtienda ${userAccount?.displayName || 'Local'}`,
+                  description: 'Microtienda local en MATCH+',
+                  category: 'Alimentos y Productos Locales',
+                  commune: userAccount?.commune || 'Castro',
+                  region: normalizeRegionName(userAccount?.region) || DEFAULT_REGION,
+                  deliveryOptions: ['Retiro en tienda', 'Despacho local'],
+                  acceptedPaymentMethods: ['Transferencia bancaria', 'Efectivo al entregar'],
+                  freeLimit: 3,
+                  extraQuota: 0,
+                  maxProductsLimit: 3,
+                  planPacksCount: 0,
+                  lastFlowToken: '',
+                  status: 'active',
+                  createdAt: serverTimestamp(),
+                  updatedAt: serverTimestamp(),
+                });
+                storeSnap = await getDoc(storeRef);
+              }
+
+              const storeData = storeSnap.data() as Omit<MicroStore, 'id'> | undefined;
+              if (storeData && storeData.lastFlowToken !== token) {
+                const nextExtra = (storeData.extraQuota || 0) + 5;
+                await updateDoc(storeRef, {
+                  extraQuota: nextExtra,
+                  maxProductsLimit: 3 + nextExtra,
+                  planPacksCount: (storeData.planPacksCount || 0) + 1,
+                  lastFlowToken: token,
+                  updatedAt: serverTimestamp(),
+                });
+              }
+
+              showToast(
+                'Pago Flow confirmado. Se agregaron +5 productos automáticamente a tu Microtienda.',
+                'success'
+              );
+              handleSectionSelect('commercial', 'my_store');
+              return;
+            }
+
+            if (orderData.campaignId) {
+              await updateDoc(doc(db, 'adCampaigns', orderData.campaignId), {
+                paymentStatus: 'confirmed',
+                moderationStatus: 'active',
+                updatedAt: serverTimestamp(),
+              });
+              showToast(`Pago Flow verificado (${commerceOrder}) y campaña activada.`, 'success');
+              handleSectionSelect('advertising', 'my_ads');
+              return;
+            }
           }
-        })
-        .catch(() => {
-          showToast('No fue posible verificar el retorno de Flow en este momento.', 'error');
-        })
-        .finally(() => {
-          const cleanUrl = window.location.pathname;
-          window.history.replaceState({}, document.title, cleanUrl);
-        });
-    }
-  }, [showToast]);
+
+          showToast(`Pago Flow verificado (${commerceOrder}).`, 'success');
+        } else {
+          showToast('Retorno de Flow recibido. Revisa el estado de tu orden.', 'info');
+        }
+      } catch {
+        showToast('No fue posible verificar el retorno de Flow en este momento.', 'error');
+      }
+    })();
+  }, [pendingFlowToken, firebaseUser, userAccount, showToast]);
 
   // First-time onboarding prompt per user
   useEffect(() => {
@@ -369,7 +460,13 @@ const AppShell: React.FC = () => {
           {activeSection === 'commercial' && (
             <CommercialModule
               rotationConfig={rotationConfig}
-              initialTab={moduleSubView === 'my_publications' ? 'my_publications' : undefined}
+              initialTab={
+                moduleSubView === 'my_publications' ||
+                moduleSubView === 'microstores' ||
+                moduleSubView === 'my_store'
+                  ? moduleSubView
+                  : undefined
+              }
               onMatchCreated={(m) => setCelebrationMatch(m)}
               onOpenChat={(convId) => {
                 setSelectedConversationId(convId);

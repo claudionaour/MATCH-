@@ -42,7 +42,7 @@ export async function initiateFlowPayment(params: {
 
 export async function verifyFlowPaymentOnServer(token: string): Promise<{
   verified: boolean;
-  result?: {status: number; commerceOrder: string; amount?: number};
+  result?: {status: number; commerceOrder: string; amount?: number; flowOrder?: number};
   error?: string;
 }> {
   const res = await fetch('/api/payments/flow/verify', {

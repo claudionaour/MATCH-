@@ -376,6 +376,55 @@
         "createdAt": { "type": "string", "format": "date-time" }
       },
       "required": ["actorUid", "action", "summary", "createdAt"]
+    },
+    "MicroStore": {
+      "title": "MicroStore",
+      "description": "Microtienda de usuario con catalogo de productos publicados, carrito y cuota de productos (3 gratis + packs de 5 por $9.990/mes).",
+      "type": "object",
+      "properties": {
+        "ownerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "storeName": { "type": "string", "minLength": 2, "maxLength": 140 },
+        "description": { "type": "string", "maxLength": 1500 },
+        "category": { "type": "string", "maxLength": 80 },
+        "commune": { "type": "string", "maxLength": 80 },
+        "region": { "type": "string", "maxLength": 80 },
+        "logoUrl": { "type": "string", "maxLength": 1000 },
+        "deliveryOptions": { "type": "array" },
+        "acceptedPaymentMethods": { "type": "array" },
+        "freeLimit": { "type": "number" },
+        "extraQuota": { "type": "number" },
+        "maxProductsLimit": { "type": "number" },
+        "planPacksCount": { "type": "number" },
+        "lastFlowToken": { "type": "string", "maxLength": 200 },
+        "status": { "type": "string", "enum": ["active", "paused"], "maxLength": 20 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["ownerId", "storeName", "category", "commune", "region", "freeLimit", "extraQuota", "maxProductsLimit", "planPacksCount", "lastFlowToken", "status", "createdAt", "updatedAt"]
+    },
+    "StoreOrder": {
+      "title": "StoreOrder",
+      "description": "Pedido de carrito de compras en una microtienda con coordinacion de entrega/envio y metodo de pago por parte del vendedor.",
+      "type": "object",
+      "properties": {
+        "storeId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sellerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "sellerName": { "type": "string", "minLength": 1, "maxLength": 140 },
+        "buyerId": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "buyerName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "buyerCommune": { "type": "string", "maxLength": 80 },
+        "items": { "type": "array" },
+        "totalCLP": { "type": "number" },
+        "buyerNote": { "type": "string", "maxLength": 500 },
+        "deliveryType": { "type": "string", "enum": ["por_coordinar", "retiro_tienda", "despacho_domicilio", "envio_encomienda"], "maxLength": 40 },
+        "deliveryDetails": { "type": "string", "maxLength": 500 },
+        "paymentMethod": { "type": "string", "enum": ["por_coordinar", "transferencia", "efectivo", "link_flow", "otro"], "maxLength": 40 },
+        "paymentDetails": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["pending_coordination", "coordinated", "completed", "cancelled"], "maxLength": 40 },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["storeId", "sellerId", "sellerName", "buyerId", "buyerName", "items", "totalCLP", "deliveryType", "paymentMethod", "status", "createdAt", "updatedAt"]
     }
   },
   "firestore": {
@@ -401,6 +450,8 @@
     "/adOrders/{orderId}": { "schema": { "$ref": "#/entities/AdOrder" }, "description": "Ordenes de pago y conciliacion." },
     "/reports/{reportId}": { "schema": { "$ref": "#/entities/Report" }, "description": "Denuncias y reportes." },
     "/systemSettings/{settingId}": { "schema": { "$ref": "#/entities/SystemSettings" }, "description": "Configuracion de sistema y rotacion." },
-    "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Logs de auditoria administrativa." }
+    "/auditLogs/{logId}": { "schema": { "$ref": "#/entities/AuditLog" }, "description": "Logs de auditoria administrativa." },
+    "/microStores/{storeId}": { "schema": { "$ref": "#/entities/MicroStore" }, "description": "Microtiendas de usuarios y cuotas de productos." },
+    "/storeOrders/{orderId}": { "schema": { "$ref": "#/entities/StoreOrder" }, "description": "Pedidos de carrito de compras en microtiendas y coordinacion de entrega/pago." }
   }
 }
