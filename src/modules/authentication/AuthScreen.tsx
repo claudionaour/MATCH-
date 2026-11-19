@@ -3,6 +3,7 @@ import {ArrowLeft, CheckCircle2, KeyRound, Mail, RefreshCw, ShieldAlert} from 'l
 import {useAuth} from '../../contexts/AuthContext';
 import {useToast} from '../../contexts/ToastContext';
 import {Logo} from '../../components/Logo';
+import {PWAInstallButton} from '../../components/PWAInstallButton';
 
 interface AuthScreenProps {
   initialMode?: 'login' | 'register' | 'reset';
@@ -142,7 +143,10 @@ export const AuthScreen: React.FC<AuthScreenProps> = ({initialMode = 'login', on
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-950 p-4 relative">
+      <div className="fixed top-4 right-4 z-30">
+        <PWAInstallButton compact responsiveLabel />
+      </div>
       <div className="w-full max-w-md rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 sm:p-8 space-y-6">
         <div className="flex items-center justify-between">
           <Logo size="md" />

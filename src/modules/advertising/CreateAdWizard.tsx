@@ -505,7 +505,7 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
           onClick={onCancel}
           className="text-xs font-semibold text-slate-500 hover:text-slate-900 dark:hover:text-white self-start sm:self-auto"
         >
-          Volver a Mi Publicidad
+          Volver a Mis publicaciones
         </button>
       </div>
 
@@ -1156,7 +1156,7 @@ export const CreateAdWizard: React.FC<CreateAdWizardProps> = ({
             onClick={onComplete}
             className="px-6 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold min-h-[44px]"
           >
-            Ir a MI PUBLICIDAD
+            Ir a Mis publicaciones
           </button>
         </div>
       )}

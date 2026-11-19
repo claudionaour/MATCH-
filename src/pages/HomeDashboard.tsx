@@ -3,6 +3,7 @@ import {
   ArrowRight,
   Bell,
   Briefcase,
+  FileText,
   HeartHandshake,
   Megaphone,
   MessageSquare,
@@ -13,7 +14,7 @@ import {useAuth} from '../contexts/AuthContext';
 import {AppSection} from '../types';
 
 interface HomeDashboardProps {
-  onNavigate: (section: AppSection) => void;
+  onNavigate: (section: AppSection, subView?: string) => void;
   matchesCount: number;
   unreadNotifications: number;
   conversationsCount: number;
@@ -92,14 +93,24 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               chilote&rdquo; para conectar directamente con vendedores reales.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('commercial')}
-            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold min-h-[44px]"
-          >
-            <span>Entrar a MATCH COMERCIAL</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => onNavigate('commercial')}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold min-h-[44px]"
+            >
+              <span>Entrar a MATCH COMERCIAL</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('commercial', 'my_publications')}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold min-h-[40px]"
+            >
+              <FileText className="w-3.5 h-3.5 text-blue-700 dark:text-blue-400" />
+              <span>Ver mis publicaciones</span>
+            </button>
+          </div>
         </div>
 
         {/* Employment */}
@@ -117,14 +128,24 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
               compatibilidad verificable por requisitos, habilidades, experiencia y ubicación.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('employment')}
-            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold min-h-[44px]"
-          >
-            <span>Entrar a MATCH LABORAL</span>
-            <ArrowRight className="w-4 h-4" />
-          </button>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => onNavigate('employment')}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-sm font-semibold min-h-[44px]"
+            >
+              <span>Entrar a MATCH LABORAL</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('employment', 'my_publications')}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold min-h-[40px]"
+            >
+              <FileText className="w-3.5 h-3.5 text-emerald-700 dark:text-emerald-400" />
+              <span>Ver mis publicaciones</span>
+            </button>
+          </div>
         </div>
 
         {/* Advertising */}
@@ -135,21 +156,31 @@ export const HomeDashboard: React.FC<HomeDashboardProps> = ({
             </div>
             <div>
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">Motor 03 · Amplificación</p>
-              <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">CREA TU ANUNCIO</h2>
+              <h2 className="text-xl font-extrabold text-slate-900 dark:text-white">MATCH PUBLICIDAD</h2>
             </div>
             <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
               Promociona tu negocio con planes desde $2.990 CLP y 15% de descuento automático por ser usuario
               registrado. Pago online vía Flow Chile o transferencia verificada.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onNavigate('advertising')}
-            className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold min-h-[44px]"
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>Crear o gestionar anuncios</span>
-          </button>
+          <div className="space-y-2.5">
+            <button
+              type="button"
+              onClick={() => onNavigate('advertising')}
+              className="w-full inline-flex items-center justify-center gap-2 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold min-h-[44px]"
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>Entrar a MATCH PUBLICIDAD</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onNavigate('advertising', 'my_ads')}
+              className="w-full inline-flex items-center justify-center gap-2 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold min-h-[40px]"
+            >
+              <FileText className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+              <span>Ver mis publicaciones</span>
+            </button>
+          </div>
         </div>
       </div>
     </div>

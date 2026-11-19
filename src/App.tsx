@@ -23,6 +23,7 @@ import {MobileBottomNav} from './components/MobileBottomNav';
 import {MatchCelebrationModal} from './components/MatchCelebrationModal';
 import {Logo} from './components/Logo';
 import {TopBar} from './components/TopBar';
+import {PWAInstallButton} from './components/PWAInstallButton';
 import {DEFAULT_ROTATION_CONFIG} from './services/config/chileCatalog';
 import {db, handleFirestoreError, OperationType} from './services/firebase/firebaseClient';
 import {verifyFlowPaymentOnServer} from './services/payments/paymentService';
@@ -49,6 +50,21 @@ import {MessagingModule} from './modules/messaging/MessagingModule';
 import {NotificationsModule} from './modules/notifications/NotificationsModule';
 import {AdminPanel} from './modules/administration/AdminPanel';
 
+const SECTION_TITLES: Record<AppSection, string> = {
+  landing: 'Inicio',
+  home: 'Inicio',
+  commercial: 'MATCH COMERCIAL',
+  employment: 'MATCH LABORAL',
+  advertising: 'MATCH PUBLICIDAD',
+  matches: 'Mis coincidencias',
+  messages: 'Mensajes',
+  notifications: 'Notificaciones',
+  profile: 'Mi perfil',
+  settings: 'Configuración',
+  help: 'Ayuda y Normativa',
+  admin: 'Panel Administrativo',
+};
+
 const AppShell: React.FC = () => {
   const {firebaseUser, userAccount, authReady, isAdmin, needsEmailVerification, logout} = useAuth();
   const {showToast} = useToast();
@@ -64,6 +80,12 @@ const AppShell: React.FC = () => {
   const [notifications, setNotifications] = useState<AppNotification[]>([]);
   const [celebrationMatch, setCelebrationMatch] = useState<MatchRecord | null>(null);
   const [selectedConversationId, setSelectedConversationId] = useState<string | null>(null);
+  const [moduleSubView, setModuleSubView] = useState<string | undefined>(undefined);
+
+  const handleSectionSelect = (section: AppSection, subView?: string) => {
+    setModuleSubView(subView);
+    setActiveSection(section);
+  };
 
   // Load global rotation config
   useEffect(() => {
@@ -232,7 +254,7 @@ const AppShell: React.FC = () => {
     <div className="min-h-screen flex bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
       <SidebarNav
         activeSection={activeSection}
-        onSelect={setActiveSection}
+        onSelect={(sec) => handleSectionSelect(sec)}
         isAdmin={isAdmin}
         unreadNotifications={unreadNotifications}
         matchesCount={activeMatchesCount}
@@ -242,82 +264,102 @@ const AppShell: React.FC = () => {
 
       <div className="flex-1 flex flex-col min-w-0">
         {/* Compact Mobile Top Header */}
-        <header className="lg:hidden sticky top-0 z-30 h-14 px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
-          <button type="button" onClick={() => setActiveSection('home')}>
+        <header className="lg:hidden sticky top-0 z-30 h-14 px-3 sm:px-4 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2">
+          <button type="button" onClick={() => setActiveSection('home')} className="shrink-0">
             <Logo size="sm" />
           </button>
 
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => setActiveSection('advertising')}
-              aria-label="Publicidad"
-              className="p-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <Megaphone className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('notifications')}
-              aria-label="Notificaciones"
-              className="relative p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <Bell className="w-4 h-4" />
-              {unreadNotifications > 0 && (
-                <span className="absolute top-1.5 right-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-400">
-                  {unreadNotifications}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('profile')}
-              aria-label="Mi perfil"
-              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <User className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('settings')}
-              aria-label="Configuración"
-              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <Settings className="w-4 h-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setActiveSection('help')}
-              aria-label="Ayuda y Normativa"
-              className="p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <HelpCircle className="w-4 h-4" />
-            </button>
-            {isAdmin && (
+          <div className="flex items-center gap-1 min-w-0">
+            <div className="flex items-center gap-0.5 overflow-x-auto">
               <button
                 type="button"
-                onClick={() => setActiveSection('admin')}
-                aria-label="Panel Administrativo"
-                className="p-2 rounded-xl text-blue-700 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[40px] flex items-center justify-center"
+                onClick={() => setActiveSection('advertising')}
+                aria-label="Publicidad"
+                className="p-1.5 sm:p-2 rounded-xl text-amber-600 dark:text-amber-400 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
               >
-                <ShieldCheck className="w-4 h-4" />
+                <Megaphone className="w-4 h-4" />
               </button>
-            )}
-            <button
-              type="button"
-              onClick={() => void logout()}
-              aria-label="Cerrar sesión"
-              className="p-2 rounded-xl text-slate-500 hover:text-rose-600 min-h-[40px] min-w-[40px] flex items-center justify-center"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('notifications')}
+                aria-label="Notificaciones"
+                className="relative p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+              >
+                <Bell className="w-4 h-4" />
+                {unreadNotifications > 0 && (
+                  <span className="absolute top-1.5 right-1.5 text-[10px] font-bold text-blue-700 dark:text-blue-400">
+                    {unreadNotifications}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('profile')}
+                aria-label="Mi perfil"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+              >
+                <User className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('settings')}
+                aria-label="Configuración"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveSection('help')}
+                aria-label="Ayuda y Normativa"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+              >
+                <HelpCircle className="w-4 h-4" />
+              </button>
+              {isAdmin && (
+                <button
+                  type="button"
+                  onClick={() => setActiveSection('admin')}
+                  aria-label="Panel Administrativo"
+                  className="p-1.5 sm:p-2 rounded-xl text-blue-700 dark:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+                >
+                  <ShieldCheck className="w-4 h-4" />
+                </button>
+              )}
+              <button
+                type="button"
+                onClick={() => void logout()}
+                aria-label="Cerrar sesión"
+                className="p-1.5 sm:p-2 rounded-xl text-slate-500 hover:text-rose-600 min-h-[40px] min-w-[34px] sm:min-w-[40px] flex items-center justify-center shrink-0"
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
+            <PWAInstallButton compact responsiveLabel />
+          </div>
+        </header>
+
+        {/* Desktop Top Header */}
+        <header className="hidden lg:flex sticky top-0 z-30 h-16 px-8 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md border-b border-slate-200 dark:border-slate-800 items-center justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
+            <span className="text-sm font-bold text-slate-900 dark:text-white truncate">
+              {SECTION_TITLES[activeSection]}
+            </span>
+            <span className="text-xs text-slate-400">·</span>
+            <span className="text-xs text-slate-500 dark:text-slate-400 truncate">
+              {userAccount.commune || 'Castro'}, {userAccount.region || 'Región de Los Lagos'}
+            </span>
+          </div>
+
+          <div className="flex items-center gap-2.5 shrink-0">
+            <PWAInstallButton compact />
           </div>
         </header>
 
         <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 pb-24 lg:pb-10">
           {activeSection === 'home' && (
             <HomeDashboard
-              onNavigate={setActiveSection}
+              onNavigate={handleSectionSelect}
               matchesCount={activeMatchesCount}
               unreadNotifications={unreadNotifications}
               conversationsCount={conversations.length}
@@ -327,6 +369,7 @@ const AppShell: React.FC = () => {
           {activeSection === 'commercial' && (
             <CommercialModule
               rotationConfig={rotationConfig}
+              initialTab={moduleSubView === 'my_publications' ? 'my_publications' : undefined}
               onMatchCreated={(m) => setCelebrationMatch(m)}
               onOpenChat={(convId) => {
                 setSelectedConversationId(convId);
@@ -338,6 +381,7 @@ const AppShell: React.FC = () => {
           {activeSection === 'employment' && (
             <EmploymentModule
               rotationConfig={rotationConfig}
+              initialTab={moduleSubView === 'my_publications' ? 'my_publications' : undefined}
               onMatchCreated={(m) => setCelebrationMatch(m)}
             />
           )}
@@ -345,6 +389,7 @@ const AppShell: React.FC = () => {
           {activeSection === 'advertising' && (
             <AdvertisingModule
               discountPercent={rotationConfig.registeredAdvertiserDiscountPercent}
+              initialView={moduleSubView === 'my_ads' ? 'my_ads' : undefined}
             />
           )}
 
@@ -375,7 +420,7 @@ const AppShell: React.FC = () => {
         </main>
       </div>
 
-      <MobileBottomNav activeSection={activeSection} onSelect={setActiveSection} />
+      <MobileBottomNav activeSection={activeSection} onSelect={(sec) => handleSectionSelect(sec)} />
 
       <MatchCelebrationModal
         match={celebrationMatch}

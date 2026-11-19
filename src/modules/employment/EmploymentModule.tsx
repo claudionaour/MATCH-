@@ -2,11 +2,13 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import {
@@ -14,12 +16,16 @@ import {
   Building2,
   CheckCircle2,
   Eye,
+  FileText,
   Flag,
   HeartHandshake,
   Lock,
+  Pause,
+  Play,
   Plus,
   Search,
   ShieldCheck,
+  Trash2,
   UserCheck,
   X,
 } from 'lucide-react';
@@ -52,6 +58,7 @@ import {AdBannerCard} from '../../components/AdBannerCard';
 interface EmploymentModuleProps {
   onMatchCreated: (match: MatchRecord) => void;
   rotationConfig: AdRotationConfig;
+  initialTab?: 'explore_jobs' | 'my_publications';
 }
 
 interface RawEmploymentInteraction {
@@ -67,15 +74,23 @@ interface RawEmploymentInteraction {
 export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
   onMatchCreated,
   rotationConfig,
+  initialTab,
 }) => {
   const {firebaseUser, userAccount} = useAuth();
   const {showToast} = useToast();
 
-  const [tab, setTab] = useState<'explore_jobs' | 'explore_workers' | 'worker_profile' | 'publish_job' | 'company_profile' | 'candidates_interest'>('explore_jobs');
+  const [tab, setTab] = useState<'explore_jobs' | 'explore_workers' | 'worker_profile' | 'publish_job' | 'my_publications' | 'company_profile' | 'candidates_interest'>(initialTab || 'explore_jobs');
   const [viewMode, setViewMode] = useState<'tinder' | 'list'>('tinder');
   const [includeDemo, setIncludeDemo] = useState(true);
 
+  useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+    }
+  }, [initialTab]);
+
   const [vacancies, setVacancies] = useState<JobVacancy[]>([]);
+  const [myVacancies, setMyVacancies] = useState<JobVacancy[]>([]);
   const [workers, setWorkers] = useState<WorkerProfile[]>([]);
   const [myWorkerProfile, setMyWorkerProfile] = useState<WorkerProfile | null>(null);
   const [myCompany, setMyCompany] = useState<CompanyProfile | null>(null);
@@ -247,12 +262,19 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
       (err) => handleFirestoreError(err, OperationType.LIST, 'employmentInteractions')
     );
 
+    const unsubMyVacs = onSnapshot(
+      query(collection(db, 'jobVacancies'), where('ownerId', '==', firebaseUser.uid)),
+      (snap) => setMyVacancies(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<JobVacancy, 'id'>)}))),
+      (err) => handleFirestoreError(err, OperationType.LIST, 'jobVacancies')
+    );
+
     return () => {
       unsubMyWorker();
       unsubMyCV();
       unsubMyComp();
       unsubOut();
       unsubIn();
+      unsubMyVacs();
     };
   }, [firebaseUser]);
 
@@ -686,6 +708,44 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
     }
   };
 
+  const handleToggleVacancyStatus = async (vac: JobVacancy) => {
+    const nextStatus = vac.status === 'active' ? 'paused' : 'active';
+    try {
+      await updateDoc(doc(db, 'jobVacancies', vac.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(nextStatus === 'paused' ? 'Vacante pausada.' : 'Vacante reactivada.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `jobVacancies/${vac.id}`);
+    }
+  };
+
+  const handleDeleteVacancy = async (vacId: string) => {
+    try {
+      await deleteDoc(doc(db, 'jobVacancies', vacId));
+      showToast('Vacante eliminada.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `jobVacancies/${vacId}`);
+    }
+  };
+
+  const handleToggleWorkerStatus = async (worker: WorkerProfile) => {
+    const nextStatus = worker.status === 'active' ? 'paused' : 'active';
+    try {
+      await updateDoc(doc(db, 'workerProfiles', worker.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(
+        nextStatus === 'paused' ? 'Perfil laboral ocultado de búsquedas.' : 'Perfil laboral activado.',
+        'success'
+      );
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `workerProfiles/${worker.id}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
@@ -696,15 +756,25 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
             discriminación.
           </p>
         </div>
-        <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={includeDemo}
-            onChange={(e) => setIncludeDemo(e.target.checked)}
-            className="rounded border-slate-300 text-blue-700"
-          />
-          <span>Ver ejemplos de demostración (Chiloé)</span>
-        </label>
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTab('my_publications')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 min-h-[40px] whitespace-nowrap"
+          >
+            <FileText className="w-4 h-4 text-emerald-700 dark:text-emerald-400" />
+            <span>Ver mis publicaciones ({myVacancies.length + (myWorkerProfile ? 1 : 0)})</span>
+          </button>
+          <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={includeDemo}
+              onChange={(e) => setIncludeDemo(e.target.checked)}
+              className="rounded border-slate-300 text-blue-700"
+            />
+            <span>Ver ejemplos de demostración (Chiloé)</span>
+          </label>
+        </div>
       </div>
 
       {/* Equal Opportunity Guarantee */}
@@ -723,6 +793,11 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
           {id: 'explore_workers' as const, label: 'Explorar Candidatos', icon: <UserCheck className="w-4 h-4" />},
           {id: 'worker_profile' as const, label: 'Mi Perfil Laboral y CV', icon: <Lock className="w-4 h-4" />},
           {id: 'publish_job' as const, label: 'Publicar Vacante', icon: <Plus className="w-4 h-4" />},
+          {
+            id: 'my_publications' as const,
+            label: `Mis publicaciones (${myVacancies.length + (myWorkerProfile ? 1 : 0)})`,
+            icon: <FileText className="w-4 h-4" />,
+          },
           {id: 'company_profile' as const, label: 'Perfil de Empresa', icon: <Building2 className="w-4 h-4" />},
           {
             id: 'candidates_interest' as const,
@@ -1154,6 +1229,141 @@ export const EmploymentModule: React.FC<EmploymentModuleProps> = ({
             Guardar perfil y currículum protegido
           </button>
         </form>
+      )}
+
+      {/* My Publications */}
+      {tab === 'my_publications' && (
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Mis vacantes laborales publicadas ({myVacancies.length})
+                </h2>
+                <p className="text-xs text-slate-500">Gestiona, pausa o elimina tus ofertas de empleo.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab('publish_job')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold min-h-[40px] whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Publicar vacante</span>
+              </button>
+            </div>
+
+            {myVacancies.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">Aún no has publicado vacantes laborales.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {myVacancies.map((vac) => (
+                  <div key={vac.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className={vac.status === 'active' ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-amber-700 dark:text-amber-400 font-semibold'}>
+                          {vac.status === 'active' ? 'Activa' : vac.status === 'paused' ? 'Pausada' : 'Cerrada'}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{vac.companyName}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{vac.commune}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{vac.modality}</span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 dark:text-white">{vac.title}</h3>
+                      <p className="font-mono tabular-nums text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                        Renta: {formatCLP(vac.salaryMinCLP)} - {formatCLP(vac.salaryMaxCLP)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleVacancyStatus(vac)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        {vac.status === 'active' ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Pausar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Reactivar</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteVacancy(vac.id)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">Mi perfil laboral publicado</h2>
+                <p className="text-xs text-slate-500">Visibilidad pública para que empresas compatibles te encuentren.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab('worker_profile')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[40px] whitespace-nowrap"
+              >
+                <span>{myWorkerProfile ? 'Editar perfil y CV' : 'Crear perfil laboral'}</span>
+              </button>
+            </div>
+
+            {!myWorkerProfile ? (
+              <p className="text-sm text-slate-500 py-2">Aún no has publicado tu perfil laboral.</p>
+            ) : (
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-2">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                    <span className={myWorkerProfile.status === 'active' ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-amber-700 dark:text-amber-400 font-semibold'}>
+                      {myWorkerProfile.status === 'active' ? 'Visible' : 'Pausado'}
+                    </span>
+                    <span aria-hidden="true">·</span>
+                    <span>{myWorkerProfile.profession}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{myWorkerProfile.commune}</span>
+                    <span aria-hidden="true">·</span>
+                    <span>{myWorkerProfile.modality}</span>
+                  </div>
+                  <h3 className="font-bold text-slate-900 dark:text-white">{myWorkerProfile.displayName}</h3>
+                  <p className="text-xs text-slate-600 dark:text-slate-300">{myWorkerProfile.headline}</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleWorkerStatus(myWorkerProfile)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[38px] whitespace-nowrap shrink-0"
+                >
+                  {myWorkerProfile.status === 'active' ? (
+                    <>
+                      <Pause className="w-3.5 h-3.5" />
+                      <span>Pausar visibilidad</span>
+                    </>
+                  ) : (
+                    <>
+                      <Play className="w-3.5 h-3.5" />
+                      <span>Activar visibilidad</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Company Profile */}

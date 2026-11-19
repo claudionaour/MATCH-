@@ -150,7 +150,7 @@ export const OnboardingWizard: React.FC<OnboardingWizardProps> = ({onComplete}) 
                 },
                 {
                   id: 'advertising' as AppModule,
-                  title: 'MATCH ADVERTISING',
+                  title: 'MATCH PUBLICIDAD',
                   desc: 'Promocionar tu negocio o emprendimiento con creación guiada de anuncios.',
                   icon: <Megaphone className="w-5 h-5 text-amber-600 dark:text-amber-400" />,
                 },

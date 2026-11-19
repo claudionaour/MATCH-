@@ -790,7 +790,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({rotationConfig, onRotatio
               </p>
             </div>
             <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5 space-y-1">
-              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">MATCH ADVERTISING</p>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">MATCH PUBLICIDAD</p>
               <p className="text-2xl font-extrabold text-slate-900 dark:text-white tabular-nums">
                 {formatCLP(financeByEngine.advertising.confirmed)}
               </p>

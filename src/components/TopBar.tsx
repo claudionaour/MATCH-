@@ -1,5 +1,6 @@
 import React from 'react';
 import {Logo} from './Logo';
+import {PWAInstallButton} from './PWAInstallButton';
 import {AppSection} from '../types';
 
 interface TopBarProps {
@@ -15,12 +16,12 @@ export const TopBar: React.FC<TopBarProps> = ({
 }) => {
   return (
     <header className="sticky top-0 z-30 h-14 border-b border-slate-200/80 dark:border-slate-800/80 bg-white/90 dark:bg-slate-950/90 backdrop-blur-md">
-      <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 flex items-center justify-between gap-8">
+      <div className="max-w-7xl mx-auto h-full px-3 sm:px-6 flex items-center justify-between gap-3 sm:gap-8">
         {/* Zone 1: Single-element brand wordmark */}
         <button
           type="button"
           onClick={() => onNavigate('landing')}
-          className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-lg"
+          className="text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 rounded-lg shrink-0"
         >
           <Logo size="md" />
         </button>
@@ -57,12 +58,13 @@ export const TopBar: React.FC<TopBarProps> = ({
           </button>
         </nav>
 
-        {/* Zone 3: Single primary action */}
-        <div className="shrink-0">
+        {/* Zone 3: Top-right corner actions (Install App + Primary Action) */}
+        <div className="flex items-center gap-2 shrink-0">
+          <PWAInstallButton compact responsiveLabel />
           <button
             type="button"
             onClick={onPrimaryAction}
-            className="px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
+            className="px-3.5 sm:px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs sm:text-sm font-semibold transition-colors whitespace-nowrap shrink-0 min-h-[40px]"
           >
             {primaryActionLabel}
           </button>

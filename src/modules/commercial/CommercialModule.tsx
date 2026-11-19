@@ -2,27 +2,33 @@ import React, {useEffect, useMemo, useState} from 'react';
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   query,
   serverTimestamp,
   setDoc,
+  updateDoc,
   where,
 } from 'firebase/firestore';
 import {
   Building2,
   CheckCircle2,
   Eye,
+  FileText,
   Filter,
   Flag,
   HeartHandshake,
   LayoutGrid,
   Layers,
   List,
+  Pause,
+  Play,
   Plus,
   Search,
   ShoppingBag,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 import {useAuth} from '../../contexts/AuthContext';
@@ -56,6 +62,7 @@ interface CommercialModuleProps {
   onMatchCreated: (match: MatchRecord) => void;
   onOpenChat: (conversationId: string) => void;
   rotationConfig: AdRotationConfig;
+  initialTab?: 'explore_offers' | 'my_publications';
 }
 
 interface RawInteraction {
@@ -70,17 +77,26 @@ interface RawInteraction {
 export const CommercialModule: React.FC<CommercialModuleProps> = ({
   onMatchCreated,
   rotationConfig,
+  initialTab,
 }) => {
   const {firebaseUser, userAccount} = useAuth();
   const {showToast} = useToast();
 
-  const [tab, setTab] = useState<'explore_offers' | 'explore_needs' | 'publish_offer' | 'publish_need' | 'seller_profile' | 'incoming_interest'>('explore_offers');
+  const [tab, setTab] = useState<'explore_offers' | 'explore_needs' | 'publish_offer' | 'publish_need' | 'my_publications' | 'seller_profile' | 'incoming_interest'>(initialTab || 'explore_offers');
   const [viewMode, setViewMode] = useState<'tinder' | 'results' | 'categories'>('tinder');
   const [includeDemo, setIncludeDemo] = useState(true);
+
+  useEffect(() => {
+    if (initialTab) {
+      setTab(initialTab);
+    }
+  }, [initialTab]);
 
   // Live Firestore states
   const [products, setProducts] = useState<CommercialProduct[]>([]);
   const [requests, setRequests] = useState<PurchaseRequest[]>([]);
+  const [myProducts, setMyProducts] = useState<CommercialProduct[]>([]);
+  const [myRequests, setMyRequests] = useState<PurchaseRequest[]>([]);
   const [myInteractions, setMyInteractions] = useState<RawInteraction[]>([]);
   const [receivedInteractions, setReceivedInteractions] = useState<RawInteraction[]>([]);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
@@ -210,10 +226,28 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       (err) => handleFirestoreError(err, OperationType.LIST, 'businessProfiles')
     );
 
+    const unsubMyProds = onSnapshot(
+      query(collection(db, 'products'), where('ownerId', '==', firebaseUser.uid)),
+      (snap) => {
+        setMyProducts(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<CommercialProduct, 'id'>)})));
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, 'products')
+    );
+
+    const unsubMyReqs = onSnapshot(
+      query(collection(db, 'purchaseRequests'), where('ownerId', '==', firebaseUser.uid)),
+      (snap) => {
+        setMyRequests(snap.docs.map((d) => ({id: d.id, ...(d.data() as Omit<PurchaseRequest, 'id'>)})));
+      },
+      (err) => handleFirestoreError(err, OperationType.LIST, 'purchaseRequests')
+    );
+
     return () => {
       unsubOut();
       unsubIn();
       unsubBiz();
+      unsubMyProds();
+      unsubMyReqs();
     };
   }, [firebaseUser]);
 
@@ -640,6 +674,50 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
     return results.sort((a, b) => b.score - a.score).slice(0, 5);
   }, [products, allRequests, firebaseUser?.uid]);
 
+  const handleToggleProductStatus = async (prod: CommercialProduct) => {
+    const nextStatus = prod.status === 'active' ? 'paused' : 'active';
+    try {
+      await updateDoc(doc(db, 'products', prod.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(nextStatus === 'paused' ? 'Publicación pausada.' : 'Publicación reactivada.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${prod.id}`);
+    }
+  };
+
+  const handleDeleteProduct = async (prodId: string) => {
+    try {
+      await deleteDoc(doc(db, 'products', prodId));
+      showToast('Producto o servicio eliminado.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `products/${prodId}`);
+    }
+  };
+
+  const handleToggleRequestStatus = async (reqItem: PurchaseRequest) => {
+    const nextStatus = reqItem.status === 'open' ? 'closed' : 'open';
+    try {
+      await updateDoc(doc(db, 'purchaseRequests', reqItem.id), {
+        status: nextStatus,
+        updatedAt: serverTimestamp(),
+      });
+      showToast(nextStatus === 'closed' ? 'Solicitud cerrada.' : 'Solicitud reabierta.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `purchaseRequests/${reqItem.id}`);
+    }
+  };
+
+  const handleDeleteRequest = async (reqId: string) => {
+    try {
+      await deleteDoc(doc(db, 'purchaseRequests', reqId));
+      showToast('Solicitud de compra eliminada.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.DELETE, `purchaseRequests/${reqId}`);
+    }
+  };
+
   return (
     <div className="space-y-6">
       {/* Header & Sub-navigation */}
@@ -651,7 +729,15 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setTab('my_publications')}
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-xs sm:text-sm font-semibold text-slate-800 dark:text-slate-100 min-h-[40px] whitespace-nowrap"
+          >
+            <FileText className="w-4 h-4 text-blue-700 dark:text-blue-400" />
+            <span>Ver mis publicaciones ({myProducts.length + myRequests.length})</span>
+          </button>
           <label className="inline-flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer">
             <input
               type="checkbox"
@@ -671,6 +757,11 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           {id: 'explore_needs' as const, label: 'Solicitudes de Compra', icon: <Sparkles className="w-4 h-4" />},
           {id: 'publish_offer' as const, label: 'Publicar Producto/Servicio', icon: <Plus className="w-4 h-4" />},
           {id: 'publish_need' as const, label: 'Publicar Necesidad', icon: <Plus className="w-4 h-4" />},
+          {
+            id: 'my_publications' as const,
+            label: `Mis publicaciones (${myProducts.length + myRequests.length})`,
+            icon: <FileText className="w-4 h-4" />,
+          },
           {id: 'seller_profile' as const, label: 'Mi Perfil Vendedor', icon: <Building2 className="w-4 h-4" />},
           {
             id: 'incoming_interest' as const,
@@ -1215,6 +1306,166 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
             Publicar solicitud de compra
           </button>
         </form>
+      )}
+
+      {/* My Publications */}
+      {tab === 'my_publications' && (
+        <div className="space-y-6">
+          <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Mis productos y servicios publicados ({myProducts.length})
+                </h2>
+                <p className="text-xs text-slate-500">Administra, pausa o elimina tus ofertas comerciales.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab('publish_offer')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold min-h-[40px] whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Publicar producto o servicio</span>
+              </button>
+            </div>
+
+            {myProducts.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">Aún no tienes productos ni servicios publicados.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {myProducts.map((prod) => (
+                  <div key={prod.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3.5 min-w-0">
+                      <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 shrink-0">
+                        <SafeImage src={prod.imageUrl} alt={prod.title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="space-y-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                          <span className={prod.status === 'active' ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-amber-700 dark:text-amber-400 font-semibold'}>
+                            {prod.status === 'active' ? 'Activa' : prod.status === 'paused' ? 'Pausada' : 'Archivada'}
+                          </span>
+                          <span aria-hidden="true">·</span>
+                          <span>{prod.itemType === 'service' ? 'Servicio' : 'Producto'}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{prod.category}</span>
+                          <span aria-hidden="true">·</span>
+                          <span>{prod.commune}</span>
+                        </div>
+                        <h3 className="font-bold text-slate-900 dark:text-white truncate">{prod.title}</h3>
+                        <p className="font-mono tabular-nums text-xs font-bold text-blue-700 dark:text-blue-400">
+                          {formatCLP(prod.priceCLP)}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleProductStatus(prod)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        {prod.status === 'active' ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Pausar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Reactivar</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteProduct(prod.id)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-3xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-6 space-y-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white">
+                  Mis solicitudes de compra ({myRequests.length})
+                </h2>
+                <p className="text-xs text-slate-500">Revisa tus búsquedas y necesidades publicadas.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setTab('publish_need')}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold min-h-[40px] whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Publicar necesidad</span>
+              </button>
+            </div>
+
+            {myRequests.length === 0 ? (
+              <p className="text-sm text-slate-500 py-4">Aún no has publicado solicitudes de compra.</p>
+            ) : (
+              <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                {myRequests.map((reqItem) => (
+                  <div key={reqItem.id} className="py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                        <span className={reqItem.status === 'open' ? 'text-emerald-700 dark:text-emerald-400 font-semibold' : 'text-slate-600 dark:text-slate-400 font-semibold'}>
+                          {reqItem.status === 'open' ? 'Abierta' : reqItem.status === 'matched' ? 'Con match' : 'Cerrada'}
+                        </span>
+                        <span aria-hidden="true">·</span>
+                        <span>{reqItem.category}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>{reqItem.commune}</span>
+                        <span aria-hidden="true">·</span>
+                        <span>Urgencia: {reqItem.urgency.replace('_', ' ')}</span>
+                      </div>
+                      <h3 className="font-bold text-slate-900 dark:text-white">{reqItem.title}</h3>
+                      <p className="font-mono tabular-nums text-xs font-bold text-blue-700 dark:text-blue-400">
+                        Presupuesto: {formatCLP(reqItem.minBudgetCLP)} - {formatCLP(reqItem.maxBudgetCLP)}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => void handleToggleRequestStatus(reqItem)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        {reqItem.status === 'open' ? (
+                          <>
+                            <Pause className="w-3.5 h-3.5" />
+                            <span>Cerrar</span>
+                          </>
+                        ) : (
+                          <>
+                            <Play className="w-3.5 h-3.5" />
+                            <span>Reabrir</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteRequest(reqItem.id)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs font-semibold min-h-[38px] whitespace-nowrap"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>Eliminar</span>
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {/* Seller Profile */}

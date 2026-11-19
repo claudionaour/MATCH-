@@ -127,7 +127,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
             <div className="lg:col-span-7 space-y-3">
               <div className="flex items-center gap-2 text-xs font-semibold text-amber-700 dark:text-amber-400">
                 <Megaphone className="w-4 h-4" />
-                <span>03. MATCH ADVERTISING · CREA TU ANUNCIO</span>
+                <span>03. MATCH PUBLICIDAD · CREA TU ANUNCIO</span>
               </div>
               <h3 className="text-xl font-bold text-slate-900 dark:text-white">
                 Puedes publicar: publicidad para emprendimientos, comercio, empresas entre otros rubros.

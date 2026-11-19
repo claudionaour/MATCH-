@@ -9,7 +9,7 @@ export const HelpLegalPage: React.FC = () => {
           Ayuda, Manual de Uso y Normativa Chile
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400">
-          Guía operativa de MATCH+ y textos legales base preparados para revisión por especialista jurídico en Chile.
+          Guía operativa de MATCH+ y textos legales.
         </p>
       </div>
 
@@ -52,11 +52,6 @@ export const HelpLegalPage: React.FC = () => {
             Documentación Legal Base (Borrador para Revisión Profesional)
           </h2>
         </div>
-
-        <p className="text-xs text-amber-800 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl p-3">
-          Nota de transparencia: Los siguientes textos constituyen una base estructural alineada con la normativa
-          chilena vigente y deben ser validados por asesoría legal antes de su publicación comercial masiva.
-        </p>
 
         <div className="space-y-4 text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
           <div className="space-y-1">

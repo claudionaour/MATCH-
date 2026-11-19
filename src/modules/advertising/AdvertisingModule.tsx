@@ -29,19 +29,29 @@ import {SafeImage} from '../../components/SafeImage';
 
 interface AdvertisingModuleProps {
   discountPercent: number;
+  initialView?: 'directory' | 'my_ads' | 'wizard';
 }
 
-export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPercent}) => {
+export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({
+  discountPercent,
+  initialView,
+}) => {
   const {firebaseUser, isPaymentExempt} = useAuth();
   const {showToast} = useToast();
 
-  const [view, setView] = useState<'directory' | 'my_ads' | 'wizard'>('directory');
+  const [view, setView] = useState<'directory' | 'my_ads' | 'wizard'>(initialView || 'directory');
   const [packages, setPackages] = useState<AdPackage[]>([]);
   const [activeAds, setActiveAds] = useState<AdCampaign[]>([]);
   const [myCampaigns, setMyCampaigns] = useState<AdCampaign[]>([]);
   const [myOrders, setMyOrders] = useState<AdOrder[]>([]);
   const [myAdvertiser, setMyAdvertiser] = useState<AdvertiserAccount | null>(null);
   const [editingCampaign, setEditingCampaign] = useState<AdCampaign | null>(null);
+
+  useEffect(() => {
+    if (initialView) {
+      setView(initialView);
+    }
+  }, [initialView]);
 
   useEffect(() => {
     const unsubPkg = onSnapshot(
@@ -119,24 +129,38 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
         <div>
           <h1 className="text-2xl font-extrabold text-slate-900 dark:text-white tracking-tight">
-            MATCH ADVERTISING · Publicidad y Destacados
+            MATCH PUBLICIDAD · Publicidad y Destacados
           </h1>
           <p className="text-sm text-slate-600 dark:text-slate-400">
-            Crea tu anuncio en 10 pasos guiados, segmenta por comuna o categoría y gestiona tus campañas con Flow.
+            Crea tu anuncio en 10 pasos guiados, segmenta por comuna o categoría y gestiona tus campañas en MATCH+.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => {
-            setEditingCampaign(null);
-            setView('wizard');
-          }}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold min-h-[44px] whitespace-nowrap"
-        >
-          <Plus className="w-4 h-4" />
-          <span>CREA TU ANUNCIO</span>
-        </button>
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={() => {
+              setEditingCampaign(null);
+              setView('my_ads');
+            }}
+            className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-800 dark:text-slate-100 text-sm font-semibold min-h-[44px] whitespace-nowrap"
+          >
+            <Megaphone className="w-4 h-4 text-amber-600" />
+            <span>Ver mis publicaciones ({myCampaigns.length})</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              setEditingCampaign(null);
+              setView('wizard');
+            }}
+            className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-sm font-semibold min-h-[44px] whitespace-nowrap"
+          >
+            <Plus className="w-4 h-4" />
+            <span>CREA TU ANUNCIO</span>
+          </button>
+        </div>
       </div>
 
       {view !== 'wizard' && (
@@ -144,7 +168,7 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
           <button
             type="button"
             onClick={() => setView('directory')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold min-h-[40px] ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold min-h-[40px] whitespace-nowrap ${
               view === 'directory'
                 ? 'bg-slate-900 dark:bg-blue-700 text-white'
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
@@ -156,14 +180,14 @@ export const AdvertisingModule: React.FC<AdvertisingModuleProps> = ({discountPer
           <button
             type="button"
             onClick={() => setView('my_ads')}
-            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold min-h-[40px] ${
+            className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold min-h-[40px] whitespace-nowrap ${
               view === 'my_ads'
                 ? 'bg-slate-900 dark:bg-blue-700 text-white'
                 : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800'
             }`}
           >
             <Megaphone className="w-4 h-4" />
-            <span>MI PUBLICIDAD ({myCampaigns.length})</span>
+            <span>Mis publicaciones ({myCampaigns.length})</span>
           </button>
         </div>
       )}
