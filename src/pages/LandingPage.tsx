@@ -165,8 +165,11 @@ export const LandingPage: React.FC<LandingPageProps> = ({onStartAuth, onNavigate
       {/* Quiet Footer */}
       <footer className="max-w-7xl mx-auto px-4 sm:px-6 py-10 border-t border-slate-200/80 dark:border-slate-800/80 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 text-xs text-slate-500 dark:text-slate-400">
         <div className="flex items-center gap-2">
-          <ShieldCheck className="w-4 h-4 text-blue-700 dark:text-blue-400" />
-          <span>MATCH+ · Conectamos necesidades con oportunidades · Lanzamiento Chiloé, Chile</span>
+          <ShieldCheck className="w-4 h-4 text-blue-700 dark:text-blue-400 shrink-0" />
+          <span>
+            MATCH+ · Conectamos necesidades con oportunidades · Lanzamiento Chiloé, Chile · Diseñada y desarrollada por
+            Business Naour Group Ltda.
+          </span>
         </div>
         <div className="flex items-center gap-5">
           <button type="button" onClick={() => onNavigate('help')} className="hover:text-slate-900 dark:hover:text-white">
