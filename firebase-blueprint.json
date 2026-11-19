@@ -70,7 +70,7 @@
         "sellerName": { "type": "string", "maxLength": 140 },
         "commune": { "type": "string", "maxLength": 80 },
         "region": { "type": "string", "maxLength": 80 },
-        "imageUrl": { "type": "string", "maxLength": 1000 },
+        "imageUrl": { "type": "string", "maxLength": 350000 },
         "availability": { "type": "string", "enum": ["available", "limited", "unavailable"], "maxLength": 20 },
         "verified": { "type": "boolean" },
         "status": { "type": "string", "enum": ["active", "paused", "archived"], "maxLength": 20 },

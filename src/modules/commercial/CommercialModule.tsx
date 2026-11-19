@@ -19,9 +19,11 @@ import {
   Filter,
   Flag,
   HeartHandshake,
+  ImagePlus,
   LayoutGrid,
   Layers,
   List,
+  Loader2,
   Package,
   Pause,
   Play,
@@ -31,6 +33,7 @@ import {
   Sparkles,
   Store,
   Trash2,
+  Upload,
   X,
 } from 'lucide-react';
 import {useAuth} from '../../contexts/AuthContext';
@@ -62,6 +65,7 @@ import {AdBannerCard} from '../../components/AdBannerCard';
 import {SafeImage} from '../../components/SafeImage';
 import {MicroStoreSection} from './MicroStoreSection';
 import {sortByCreatedDesc} from '../../utils/sortNewest';
+import {processGalleryImageFile} from '../../utils/imageUpload';
 
 interface CommercialModuleProps {
   onMatchCreated: (match: MatchRecord) => void;
@@ -160,7 +164,9 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
   const [prodPrice, setProdPrice] = useState('');
   const [prodCommune, setProdCommune] = useState(userAccount?.commune || 'Castro');
   const [prodRegion, setProdRegion] = useState(normalizeRegionName(userAccount?.region));
-  const [prodImageUrl, setProdImageUrl] = useState('/src/assets/images/commercial_garlic_chilote_1795023911044.jpg');
+  const [prodImageUrl, setProdImageUrl] = useState('');
+  const [uploadingFormImage, setUploadingFormImage] = useState(false);
+  const [updatingImageId, setUpdatingImageId] = useState<string | null>(null);
   const [prodAvail, setProdAvail] = useState<'available' | 'limited' | 'unavailable'>('available');
   const [prodDelivery, setProdDelivery] = useState('Retiro en local, Despacho comunal');
 
@@ -685,9 +691,50 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
       setProdTitle('');
       setProdDesc('');
       setProdPrice('');
+      setProdImageUrl('');
       setTab('explore_offers');
     } catch (err) {
       handleFirestoreError(err, OperationType.CREATE, 'products');
+    }
+  };
+
+  const handleFormImageSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadingFormImage(true);
+    try {
+      const optimizedDataUrl = await processGalleryImageFile(file);
+      setProdImageUrl(optimizedDataUrl);
+      showToast('Imagen cargada desde tu galería.', 'success');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'No se pudo cargar la imagen desde tu galería.', 'error');
+    } finally {
+      setUploadingFormImage(false);
+    }
+  };
+
+  const handleUpdateProductImage = async (prodId: string, file: File) => {
+    setUpdatingImageId(prodId);
+    let optimizedDataUrl = '';
+    try {
+      optimizedDataUrl = await processGalleryImageFile(file);
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'No se pudo procesar la imagen seleccionada.', 'error');
+      setUpdatingImageId(null);
+      return;
+    }
+
+    try {
+      await updateDoc(doc(db, 'products', prodId), {
+        imageUrl: optimizedDataUrl,
+        updatedAt: serverTimestamp(),
+      });
+      showToast('Imagen actualizada en tu publicación y Microtienda.', 'success');
+    } catch (err) {
+      handleFirestoreError(err, OperationType.UPDATE, `products/${prodId}`);
+    } finally {
+      setUpdatingImageId(null);
     }
   };
 
@@ -959,6 +1006,8 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
           onRequestPublishProduct={() => setTab('publish_offer')}
           onToggleProductStatus={handleToggleProductStatus}
           onDeleteProduct={handleDeleteProduct}
+          onUpdateProductImage={handleUpdateProductImage}
+          updatingImageId={updatingImageId}
           includeDemo={includeDemo}
           openUpgradeTrigger={upgradeTrigger}
         />
@@ -1391,24 +1440,78 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <label className="text-xs font-semibold">Métodos de entrega</label>
-              <input
-                type="text"
-                value={prodDelivery}
-                onChange={(e) => setProdDelivery(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-              />
-            </div>
-            <div className="space-y-1">
-              <label className="text-xs font-semibold">URL o imagen del producto</label>
-              <input
-                type="text"
-                value={prodImageUrl}
-                onChange={(e) => setProdImageUrl(e.target.value)}
-                className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
-              />
+          <div className="space-y-1">
+            <label className="text-xs font-semibold">Métodos de entrega</label>
+            <input
+              type="text"
+              value={prodDelivery}
+              onChange={(e) => setProdDelivery(e.target.value)}
+              className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3.5 py-2.5 text-sm"
+            />
+          </div>
+
+          <div className="space-y-2 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-950/50 p-4">
+            <label className="text-xs font-semibold text-slate-800 dark:text-slate-200 block">
+              Imagen del producto o servicio
+            </label>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+              <div className="w-24 h-24 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 shrink-0">
+                <SafeImage
+                  src={prodImageUrl}
+                  alt={prodTitle || 'Vista previa del producto'}
+                  className="w-full h-full object-cover"
+                  fallbackLabel="Sin foto aún"
+                />
+              </div>
+              <div className="flex-1 space-y-2.5">
+                <div className="flex flex-wrap items-center gap-2">
+                  <label
+                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold min-h-[42px] whitespace-nowrap cursor-pointer transition-colors ${
+                      uploadingFormImage ? 'opacity-60 pointer-events-none' : ''
+                    }`}
+                  >
+                    {uploadingFormImage ? (
+                      <Loader2 className="w-4 h-4 animate-spin" />
+                    ) : (
+                      <ImagePlus className="w-4 h-4" />
+                    )}
+                    <span>
+                      {uploadingFormImage
+                        ? 'Procesando imagen...'
+                        : prodImageUrl
+                          ? 'Cambiar foto desde galería'
+                          : 'Subir foto desde galería'}
+                    </span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleFormImageSelect}
+                      disabled={uploadingFormImage}
+                      className="sr-only"
+                    />
+                  </label>
+                  {prodImageUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setProdImageUrl('')}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-semibold text-slate-700 dark:text-slate-300 min-h-[42px]"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Quitar foto</span>
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={prodImageUrl.startsWith('data:') ? '' : prodImageUrl}
+                  onChange={(e) => setProdImageUrl(e.target.value)}
+                  placeholder="Opcional: pega un enlace web de imagen (https://...)"
+                  className="w-full rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-3 py-2 text-xs"
+                />
+                <p className="text-[11px] text-slate-500">
+                  Compatible con galería de celular, tablet y computador (JPG, PNG, WEBP). Se optimiza automáticamente.
+                </p>
+              </div>
             </div>
           </div>
 
@@ -1583,7 +1686,36 @@ export const CommercialModule: React.FC<CommercialModuleProps> = ({
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      <label
+                        className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 text-xs font-semibold min-h-[38px] whitespace-nowrap cursor-pointer ${
+                          updatingImageId === prod.id ? 'opacity-60 pointer-events-none' : ''
+                        }`}
+                      >
+                        {updatingImageId === prod.id ? (
+                          <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Upload className="w-3.5 h-3.5" />
+                        )}
+                        <span>
+                          {updatingImageId === prod.id
+                            ? 'Subiendo...'
+                            : prod.imageUrl
+                              ? 'Cambiar imagen'
+                              : 'Subir imagen'}
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={updatingImageId === prod.id}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            e.target.value = '';
+                            if (file) void handleUpdateProductImage(prod.id, file);
+                          }}
+                          className="sr-only"
+                        />
+                      </label>
                       <button
                         type="button"
                         onClick={() => void handleToggleProductStatus(prod)}

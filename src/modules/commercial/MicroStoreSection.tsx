@@ -14,6 +14,7 @@ import {
   ArrowLeft,
   CheckCircle2,
   CreditCard,
+  Loader2,
   Minus,
   Package,
   Pause,
@@ -26,6 +27,7 @@ import {
   Store,
   Trash2,
   Truck,
+  Upload,
   X,
 } from 'lucide-react';
 import {useAuth} from '../../contexts/AuthContext';
@@ -63,6 +65,8 @@ interface MicroStoreSectionProps {
   onRequestPublishProduct: () => void;
   onToggleProductStatus: (prod: CommercialProduct) => Promise<void>;
   onDeleteProduct: (prodId: string) => Promise<void>;
+  onUpdateProductImage?: (prodId: string, file: File) => Promise<void>;
+  updatingImageId?: string | null;
   includeDemo: boolean;
   openUpgradeTrigger?: number;
 }
@@ -101,6 +105,8 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
   onRequestPublishProduct,
   onToggleProductStatus,
   onDeleteProduct,
+  onUpdateProductImage,
+  updatingImageId,
   includeDemo,
   openUpgradeTrigger = 0,
 }) => {
@@ -287,6 +293,7 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
 
   const addToCart = (prod: CommercialProduct) => {
     const sellerId = prod.ownerId;
+    const safeCartImageUrl = prod.imageUrl && !prod.imageUrl.startsWith('data:') ? prod.imageUrl : '';
     setCartsBySeller((prev) => {
       const existingList = prev[sellerId] || [];
       const found = existingList.find((i) => i.productId === prod.id);
@@ -299,7 +306,7 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
               title: prod.title,
               priceCLP: prod.priceCLP,
               quantity: 1,
-              imageUrl: prod.imageUrl,
+              imageUrl: safeCartImageUrl,
             },
           ];
       return {...prev, [sellerId]: updated};
@@ -343,7 +350,10 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
         buyerId: firebaseUser.uid,
         buyerName: userAccount?.displayName || firebaseUser.displayName || 'Cliente',
         buyerCommune: userAccount?.commune || 'Castro',
-        items: currentCart.slice(0, 20),
+        items: currentCart.slice(0, 20).map((it) => ({
+          ...it,
+          imageUrl: it.imageUrl && !it.imageUrl.startsWith('data:') ? it.imageUrl : '',
+        })),
         totalCLP: currentCartTotal,
         buyerNote: buyerNote.trim(),
         deliveryType: 'por_coordinar',
@@ -1290,11 +1300,42 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2 shrink-0">
+                      {onUpdateProductImage && (
+                        <label
+                          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 text-xs font-semibold min-h-[36px] whitespace-nowrap cursor-pointer ${
+                            updatingImageId === prod.id ? 'opacity-60 pointer-events-none' : ''
+                          }`}
+                        >
+                          {updatingImageId === prod.id ? (
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                          ) : (
+                            <Upload className="w-3.5 h-3.5" />
+                          )}
+                          <span>
+                            {updatingImageId === prod.id
+                              ? 'Subiendo...'
+                              : prod.imageUrl
+                                ? 'Cambiar imagen'
+                                : 'Subir imagen'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={updatingImageId === prod.id}
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              e.target.value = '';
+                              if (file) void onUpdateProductImage(prod.id, file);
+                            }}
+                            className="sr-only"
+                          />
+                        </label>
+                      )}
                       <button
                         type="button"
                         onClick={() => void onToggleProductStatus(prod)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[36px]"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs font-semibold min-h-[36px] whitespace-nowrap"
                       >
                         {prod.status === 'active' ? <Pause className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
                         <span>{prod.status === 'active' ? 'Pausar' : 'Activar'}</span>
@@ -1302,7 +1343,7 @@ export const MicroStoreSection: React.FC<MicroStoreSectionProps> = ({
                       <button
                         type="button"
                         onClick={() => void onDeleteProduct(prod.id)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs font-semibold min-h-[36px]"
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-200 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 text-xs font-semibold min-h-[36px] whitespace-nowrap"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                         <span>Eliminar</span>
